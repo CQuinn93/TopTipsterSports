@@ -109,22 +109,17 @@ export default function LoginScreen() {
           alignItems: 'center',
           marginBottom: theme.spacing.xl,
         },
-        wordmarkTop: {
-          fontFamily: theme.fontFamily.swish,
-          fontSize: isCompact
-            ? Platform.OS === 'web'
-              ? 32
-              : 36
-            : Platform.OS === 'web'
-              ? 40
-              : 48,
-          color: '#fafafa',
-          textAlign: 'center',
-          marginBottom: theme.spacing.sm,
-          letterSpacing: Platform.OS === 'web' ? 1 : 1.2,
-        },
         brandLogo: {
           marginBottom: theme.spacing.xs,
+        },
+        wordmarkName: {
+          fontFamily: theme.fontFamily.regular,
+          fontSize: Platform.OS === 'web' ? 14 : 15,
+          fontWeight: '700',
+          color: theme.colors.accent,
+          textAlign: 'center',
+          marginTop: 8,
+          letterSpacing: Platform.OS === 'web' ? 1 : 1.2,
         },
         wordmarkSub: {
           fontFamily: theme.fontFamily.regular,
@@ -132,7 +127,7 @@ export default function LoginScreen() {
           fontWeight: '700',
           color: theme.colors.accent,
           textAlign: 'center',
-          marginTop: 8,
+          marginTop: 4,
           letterSpacing: Platform.OS === 'web' ? 6 : 7,
         },
         input: {
@@ -508,10 +503,10 @@ export default function LoginScreen() {
       <View style={styles.content}>
         <View>
           <View style={styles.wordmarkBlock}>
-            <Text style={styles.wordmarkTop} accessibilityRole="header">
+            <BrandLogo size={isCompact ? 72 : 88} style={styles.brandLogo} />
+            <Text style={styles.wordmarkName} accessibilityRole="header">
               Top Tipster
             </Text>
-            <BrandLogo size={isCompact ? 72 : 88} style={styles.brandLogo} />
             <Text style={styles.wordmarkSub}>SPORTS</Text>
           </View>
 
