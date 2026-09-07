@@ -313,7 +313,7 @@ export default function CompetitionHubScreen() {
   const isCompact = width < COMPACT_BREAKPOINT || height < 640;
   const isWeb = Platform.OS === 'web';
   /** Phones/tablets: pin main body to the top; desktops keep vertical centre. */
-  const pinBodyTop = !isDesktop;
+  const pinBodyTop = !isDesktop || tab === 'admin' || tab === 'account';
 
   const sportProgress = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(1)).current;
