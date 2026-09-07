@@ -32,7 +32,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/logo/FAVICON.png"
+      "favicon": "./assets/logo/Dark_logo.png"
     },
     "plugins": [
       "expo-router",
