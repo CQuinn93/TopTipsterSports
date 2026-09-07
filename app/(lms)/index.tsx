@@ -57,6 +57,7 @@ import {
 } from '@/lib/fundraiserBranding';
 import { LmsTrademarkDisclaimer } from '@/components/lms/LmsTrademarkDisclaimer';
 import { LmsPushNotificationsCard } from '@/components/lms/LmsPushNotificationsCard';
+import { AdBanner } from '@/components/ads/AdBanner';
 import { SurvivalDonut } from '@/components/lms/SurvivalDonut';
 import { LmsUserPoolGrid } from '@/components/lms/LmsUserPoolGrid';
 
@@ -2427,6 +2428,7 @@ export default function LmsHomeScreen() {
           </ScrollView>
         </>
       )}
+      <AdBanner placement="lms" />
     </View>
   );
 }

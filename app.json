@@ -4,12 +4,12 @@
     "slug": "cheltenham-top-tipster",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/TT Logo.png",
+    "icon": "./assets/logo/Dark_logo.png",
     "scheme": "cheltenhamtipster",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/logo/Dark_logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#0a0a0a"
     },
@@ -23,7 +23,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/TT Logo.png",
+        "foregroundImage": "./assets/logo/Dark_logo.png",
         "backgroundColor": "#0a0a0a"
       },
       "package": "com.cheltenhamtoptipster.app",

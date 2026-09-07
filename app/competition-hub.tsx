@@ -54,6 +54,7 @@ import {
 } from '@/lib/f2t/api';
 import { F2tAlertsPanel } from '@/components/f2t/F2tAlertsPanel';
 import { OwnerGamemasterPromoteFlow } from '@/components/OwnerGamemasterPromoteFlow';
+import { BrandLogo } from '@/components/BrandLogo';
 import { AccountSubscriptionPanel } from '@/components/AccountSubscriptionPanel';
 import { estimateLeagueBillFromActualPlayers } from '@/lib/gamemasterCustomPricing';
 import {
@@ -1140,9 +1141,15 @@ export default function CompetitionHubScreen() {
           justifyContent: 'space-between',
           gap: theme.spacing.md,
         },
+        brandBlock: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          minWidth: 0,
+        },
         brandTitle: {
           fontFamily: theme.fontFamily.swish,
-          fontSize: isCompact ? 24 : 28,
+          fontSize: isCompact ? 22 : 26,
           color: theme.colors.text,
           letterSpacing: 0.6,
         },
@@ -1749,9 +1756,12 @@ export default function CompetitionHubScreen() {
         style={[styles.header, { opacity: enterOpacity, transform: [{ translateY: enterRise }] }]}
       >
         <View style={styles.headerInner}>
-          <View>
-            <Text style={styles.brandTitle}>Top Tipster</Text>
-            <Text style={styles.brandSub}>SPORTS</Text>
+          <View style={styles.brandBlock}>
+            <BrandLogo size={isCompact ? 36 : isDesktop ? 44 : 40} />
+            <View>
+              <Text style={styles.brandTitle}>Top Tipster</Text>
+              <Text style={styles.brandSub}>SPORTS</Text>
+            </View>
           </View>
           <View style={styles.headerRight}>
             <View style={styles.tabRow} accessibilityRole="tablist">

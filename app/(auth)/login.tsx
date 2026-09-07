@@ -18,6 +18,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BrandLogo } from '@/components/BrandLogo';
 import {
   fetchMyEntitlements,
   isGamemasterAccount,
@@ -108,13 +109,8 @@ export default function LoginScreen() {
           alignItems: 'center',
           marginBottom: theme.spacing.xl,
         },
-        wordmarkTop: {
-          fontFamily: theme.fontFamily.swish,
-          fontSize: Platform.OS === 'web' ? 40 : 48,
-          color: '#fafafa',
-          textAlign: 'center',
+        brandLogo: {
           marginBottom: theme.spacing.xs,
-          letterSpacing: Platform.OS === 'web' ? 1 : 1.2,
         },
         wordmarkSub: {
           fontFamily: theme.fontFamily.regular,
@@ -498,9 +494,7 @@ export default function LoginScreen() {
       <View style={styles.content}>
         <View>
           <View style={styles.wordmarkBlock}>
-            <Text style={styles.wordmarkTop} accessibilityRole="header">
-              Top Tipster
-            </Text>
+            <BrandLogo size={isCompact ? 72 : 88} style={styles.brandLogo} />
             <Text style={styles.wordmarkSub}>SPORTS</Text>
           </View>
 

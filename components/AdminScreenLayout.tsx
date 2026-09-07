@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import { getAdminAccent } from '@/constants/adminUi';
+import { BrandLogo } from '@/components/BrandLogo';
 
 const DESKTOP_BREAKPOINT = 900;
 const COMPACT_BREAKPOINT = 420;
@@ -114,9 +115,15 @@ export function AdminScreenLayout({
           justifyContent: 'space-between',
           gap: theme.spacing.md,
         },
+        brandBlock: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          minWidth: 0,
+        },
         brandTitle: {
           fontFamily: theme.fontFamily.swish,
-          fontSize: isCompact ? 24 : 28,
+          fontSize: isCompact ? 22 : 26,
           color: theme.colors.text,
           letterSpacing: 0.6,
         },
@@ -221,9 +228,12 @@ export function AdminScreenLayout({
 
       <View style={styles.header}>
         <View style={styles.headerInner}>
-          <View>
-            <Text style={styles.brandTitle}>Top Tipster</Text>
-            <Text style={styles.brandSub}>ADMIN</Text>
+          <View style={styles.brandBlock}>
+            <BrandLogo size={isCompact ? 34 : 40} />
+            <View>
+              <Text style={styles.brandTitle}>Top Tipster</Text>
+              <Text style={styles.brandSub}>ADMIN</Text>
+            </View>
           </View>
           <View style={styles.headerRight}>
             <View style={styles.tabRow} accessibilityRole="tablist">

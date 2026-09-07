@@ -20,6 +20,10 @@ import { useAuth } from '@/contexts/AuthContext';
 import { FootballNextUpSpotlight } from '@/components/lms/FootballNextUpSpotlight';
 import { GoalscorersPanel } from '@/components/f2t/GoalscorersPanel';
 import { LmsTrademarkDisclaimer } from '@/components/lms/LmsTrademarkDisclaimer';
+import { AdBanner } from '@/components/ads/AdBanner';
+import { RewardedAdPrompt } from '@/components/ads/RewardedAdPrompt';
+import { AD_UNLOCK_KEYS, isAdUnlockActive } from '@/lib/ads/sessionUnlock';
+import { useShowAds } from '@/lib/ads/useShowAds';
 import {
   f2tCreateCompetition,
   f2tGetHome,
@@ -48,6 +52,11 @@ export default function F2tHomeScreen() {
   const { openSidebar } = useSidebar();
   const insets = useSafeAreaInsets();
   const { userId } = useAuth();
+  const { showAds } = useShowAds();
+  const [goalscorersUnlocked, setGoalscorersUnlocked] = useState(() =>
+    isAdUnlockActive(AD_UNLOCK_KEYS.t20Goalscorers)
+  );
+  const [goalscorersPromptVisible, setGoalscorersPromptVisible] = useState(false);
   const { tab: tabParam, create: createParam, quoteId: quoteIdParam } = useLocalSearchParams<{
     tab?: string;
     create?: string;
@@ -635,6 +644,10 @@ export default function F2tHomeScreen() {
                           active && !homePanelExpanded && styles.tabCollapsedActive,
                         ]}
                         onPress={() => {
+                          if (t.key === 'goalscorers' && showAds && !goalscorersUnlocked) {
+                            setGoalscorersPromptVisible(true);
+                            return;
+                          }
                           setTab(t.key);
                           if (!homePanelExpanded) setHomePanelExpanded(true);
                         }}
@@ -892,7 +905,22 @@ export default function F2tHomeScreen() {
                   ) : null}
 
                   {tab === 'goalscorers' ? (
-                    <GoalscorersPanel refreshKey={tableRefreshKey} />
+                    showAds && !goalscorersUnlocked ? (
+                      <View style={{ gap: 12, paddingVertical: 16 }}>
+                        <Text style={styles.joinHint}>
+                          Goalscorers are available after a short ad that helps keep Top Tipster
+                          running.
+                        </Text>
+                        <Pressable
+                          style={styles.joinBtn}
+                          onPress={() => setGoalscorersPromptVisible(true)}
+                        >
+                          <Text style={styles.joinBtnText}>View goalscorers</Text>
+                        </Pressable>
+                      </View>
+                    ) : (
+                      <GoalscorersPanel refreshKey={tableRefreshKey} />
+                    )
                   ) : null}
                 </View>
               ) : null}
@@ -900,8 +928,21 @@ export default function F2tHomeScreen() {
 
             <LmsTrademarkDisclaimer />
           </ScrollView>
+          <RewardedAdPrompt
+            placement="t20Goalscorers"
+            unlockKey={AD_UNLOCK_KEYS.t20Goalscorers}
+            visible={goalscorersPromptVisible}
+            onCancel={() => setGoalscorersPromptVisible(false)}
+            onUnlocked={() => {
+              setGoalscorersUnlocked(true);
+              setGoalscorersPromptVisible(false);
+              setTab('goalscorers');
+              if (!homePanelExpanded) setHomePanelExpanded(true);
+            }}
+          />
         </>
       )}
+      <AdBanner placement="t20" />
     </View>
   );
 }

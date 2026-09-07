@@ -12,12 +12,12 @@ module.exports = {
     slug: 'cheltenham-top-tipster',
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './assets/TT Logo.png',
+    icon: './assets/logo/Dark_logo.png',
     scheme: 'cheltenhamtipster',
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
     splash: {
-      image: './assets/splash-icon.png',
+      image: './assets/logo/Dark_logo.png',
       resizeMode: 'contain',
       backgroundColor: '#0a0a0a',
     },
@@ -31,7 +31,7 @@ module.exports = {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: './assets/TT Logo.png',
+        foregroundImage: './assets/logo/Dark_logo.png',
         backgroundColor: '#0a0a0a',
       },
       package: 'com.cheltenhamtoptipster.app',
@@ -59,6 +59,13 @@ module.exports = {
         },
       ],
       '@react-native-community/datetimepicker',
+      [
+        'react-native-google-mobile-ads',
+        {
+          androidAppId: 'ca-app-pub-7584087980163456~8592256097',
+          iosAppId: 'ca-app-pub-7584087980163456~6215811092',
+        },
+      ],
     ],
     experiments: {
       typedRoutes: true,

@@ -19,6 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { pickClubLogoImage, uploadClubLogo } from '@/lib/clubLogoStorage';
 import { gamemasterCompleteSetup } from '@/lib/subscriptionEntitlements';
+import { BrandLogo } from '@/components/BrandLogo';
 import {
   gamemasterListMyQuotes,
   gamemasterRespondToQuote,
@@ -309,7 +310,7 @@ export function GamemasterWelcomeSetupModal({ visible, onComplete }: Props) {
             <View style={styles.card}>
               {step === 'welcome' ? (
                 <>
-                  <Text style={styles.brand}>TOP TIPSTER</Text>
+                  <BrandLogo size={64} style={{ alignSelf: 'center', marginBottom: 4 }} />
                   <Text style={styles.welcomeTitle}>Welcome {username}</Text>
                   <Text style={styles.heroLine}>
                     You have been promoted to{' '}
@@ -331,7 +332,7 @@ export function GamemasterWelcomeSetupModal({ visible, onComplete }: Props) {
 
               {step === 'club' ? (
                 <>
-                  <Text style={styles.brand}>TOP TIPSTER</Text>
+                  <BrandLogo size={40} style={{ alignSelf: 'center' }} />
                   <Text style={styles.formTitle}>Set up your club</Text>
                   <Text style={styles.body}>
                     Add your club name and logo. Payment link is optional — use an external page
@@ -399,7 +400,7 @@ export function GamemasterWelcomeSetupModal({ visible, onComplete }: Props) {
 
               {step === 'quote' ? (
                 <>
-                  <Text style={styles.brand}>TOP TIPSTER</Text>
+                  <BrandLogo size={40} style={{ alignSelf: 'center' }} />
                   <Text style={styles.formTitle}>Your onboarding quote</Text>
                   <Text style={styles.body}>
                     Review the package below. Accept it to proceed toward payment, or request an
@@ -516,7 +517,7 @@ export function GamemasterWelcomeSetupModal({ visible, onComplete }: Props) {
 
               {step === 'done' ? (
                 <>
-                  <Text style={styles.brand}>TOP TIPSTER</Text>
+                  <BrandLogo size={56} style={{ alignSelf: 'center', marginBottom: 4 }} />
                   <Text style={styles.welcomeTitle}>
                     {paymentConfirmed ? 'You’re ready' : 'You’re set'}
                   </Text>

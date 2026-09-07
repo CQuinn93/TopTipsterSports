@@ -28,6 +28,7 @@ import { useSidebar } from '@/contexts/SidebarContext';
 import { PlayerProgressGrid } from '@/components/f2t/PlayerProgressGrid';
 import { F2tPlayerPicker } from '@/components/f2t/F2tPlayerPicker';
 import { F2tAdminPanel } from '@/components/f2t/F2tAdminPanel';
+import { AdBanner } from '@/components/ads/AdBanner';
 import {
   f2tGetCompetition,
   f2tListSelectablePlayers,
@@ -756,6 +757,8 @@ export default function F2tCompetitionScreen() {
           ) : null}
         </ScrollView>
       )}
+
+      <AdBanner placement="t20" />
 
       <F2tPlayerPicker
         visible={pickerOpen}

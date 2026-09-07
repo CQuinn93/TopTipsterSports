@@ -42,6 +42,10 @@ import {
   ChampionStandingJourney,
 } from '@/components/lms/ChampionStandingJourney';
 import { LmsTrademarkDisclaimer } from '@/components/lms/LmsTrademarkDisclaimer';
+import { AdBanner } from '@/components/ads/AdBanner';
+import { RewardedAdPrompt } from '@/components/ads/RewardedAdPrompt';
+import { AD_UNLOCK_KEYS, isAdUnlockActive } from '@/lib/ads/sessionUnlock';
+import { useShowAds } from '@/lib/ads/useShowAds';
 import {
   lmsAdminSetCompetitionTeam,
   lmsAdminDeleteCompetition,
@@ -126,7 +130,18 @@ export default function LmsCompetitionDashboard() {
   const [selectionLoading, setSelectionLoading] = useState(false);
   const [gameweeksLoading, setGameweeksLoading] = useState(false);
   const [tab, setTab] = useState<TabKey>('leaderboard');
+  const { showAds } = useShowAds();
+  const [standingUnlocked, setStandingUnlocked] = useState(() =>
+    isAdUnlockActive(AD_UNLOCK_KEYS.lmsStanding)
+  );
+  const [standingPromptVisible, setStandingPromptVisible] = useState(false);
   const [name, setName] = useState('');
+
+  useEffect(() => {
+    if (tab === 'leaderboard' && showAds && !standingUnlocked) {
+      setStandingPromptVisible(true);
+    }
+  }, [tab, showAds, standingUnlocked]);
   const [fundraiser, setFundraiser] = useState<FundraiserBranding | null>(null);
   const [compStatus, setCompStatus] = useState('');
   const [startGwNumber, setStartGwNumber] = useState<number | null>(null);
@@ -3274,7 +3289,13 @@ export default function LmsCompetitionDashboard() {
                   <Pressable
                     key={t.key}
                     style={[styles.tab, active && styles.tabActive]}
-                    onPress={() => setTab(t.key)}
+                    onPress={() => {
+                      if (t.key === 'leaderboard' && showAds && !standingUnlocked) {
+                        setStandingPromptVisible(true);
+                        return;
+                      }
+                      setTab(t.key);
+                    }}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: active }}
                   >
@@ -3284,6 +3305,18 @@ export default function LmsCompetitionDashboard() {
               })}
             </View>
           ) : null}
+
+          <RewardedAdPrompt
+            placement="lmsStanding"
+            unlockKey={AD_UNLOCK_KEYS.lmsStanding}
+            visible={standingPromptVisible}
+            onCancel={() => setStandingPromptVisible(false)}
+            onUnlocked={() => {
+              setStandingUnlocked(true);
+              setStandingPromptVisible(false);
+              setTab('leaderboard');
+            }}
+          />
 
           <ScrollView
             contentContainerStyle={[
@@ -3694,6 +3727,19 @@ export default function LmsCompetitionDashboard() {
             ) : null}
 
             {tab === 'leaderboard' ? (
+              showAds && !standingUnlocked ? (
+                <View style={{ gap: 12, paddingVertical: 24 }}>
+                  <Text style={styles.sectionIntro}>
+                    Standings are available after a short ad that helps keep Top Tipster running.
+                  </Text>
+                  <Pressable
+                    style={styles.primaryBtn}
+                    onPress={() => setStandingPromptVisible(true)}
+                  >
+                    <Text style={styles.primaryBtnText}>View standings</Text>
+                  </Pressable>
+                </View>
+              ) : (
               <>
                 {rolloverActive && (canRequestRejoin || hasPendingRejoin) ? (
                   <View style={styles.rolloverBanner}>
@@ -3935,6 +3981,7 @@ export default function LmsCompetitionDashboard() {
                   </>
                 )}
               </>
+              )
             ) : null}
 
             {tab === 'admin' && canHandleJoins ? (
@@ -4714,6 +4761,7 @@ export default function LmsCompetitionDashboard() {
           </ScrollView>
         </>
       )}
+      {tab === 'gameweeks' ? <AdBanner placement="lms" /> : null}
     </View>
   );
 }

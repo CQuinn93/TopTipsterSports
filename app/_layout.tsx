@@ -10,6 +10,7 @@ import { AuthProvider } from '@/contexts/AuthContext';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { darkTheme } from '@/constants/theme';
 import { setNotificationHandler } from '@/lib/selectionReminderNotifications';
+import { initMobileAds } from '@/lib/ads/initAds';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -17,6 +18,12 @@ setNotificationHandler();
 
 function RootLayoutContent() {
   const theme = useTheme();
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    void initMobileAds();
+  }, []);
+
   return (
     <>
       <StatusBar style={theme.colors.background === darkTheme.colors.background ? 'light' : 'dark'} />
