@@ -113,10 +113,9 @@ export default function LoginScreen() {
           marginBottom: theme.spacing.xs,
         },
         wordmarkName: {
-          fontFamily: theme.fontFamily.regular,
-          fontSize: Platform.OS === 'web' ? 14 : 15,
-          fontWeight: '700',
-          color: theme.colors.accent,
+          fontFamily: theme.fontFamily.swish,
+          fontSize: Platform.OS === 'web' ? 40 : 48,
+          color: '#fafafa',
           textAlign: 'center',
           marginTop: 8,
           letterSpacing: Platform.OS === 'web' ? 1 : 1.2,
@@ -127,7 +126,7 @@ export default function LoginScreen() {
           fontWeight: '700',
           color: theme.colors.accent,
           textAlign: 'center',
-          marginTop: 4,
+          marginTop: 8,
           letterSpacing: Platform.OS === 'web' ? 6 : 7,
         },
         input: {
