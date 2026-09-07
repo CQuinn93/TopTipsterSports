@@ -1517,14 +1517,15 @@ export default function LmsCompetitionDashboard() {
     return mine.sort((a, b) => a.gameweek_number - b.gameweek_number);
   }, [historyByUserId, userId, pick, currentGw, currentPickTeam]);
 
-  const onSavePick = async () => {
-    if (!selectedTeamId || !currentGw || !userId) return;
+  const onSavePick = async (teamId?: string) => {
+    const pickTeamId = teamId ?? selectedTeamId;
+    if (!pickTeamId || !currentGw || !userId) return;
     setSaving(true);
     try {
       const res = await lmsSubmitPick({
         competitionId,
         gameweekId: currentGw.id,
-        teamId: selectedTeamId,
+        teamId: pickTeamId,
       });
       if (!res.success) {
         Alert.alert('Pick not saved', lmsPickErrorMessage(res.error));
@@ -1532,25 +1533,23 @@ export default function LmsCompetitionDashboard() {
       }
 
       const team =
-        teams.find((t) => t.id === selectedTeamId) ??
-        competitionTeams.find((t) => t.id === selectedTeamId) ??
+        teams.find((t) => t.id === pickTeamId) ??
+        competitionTeams.find((t) => t.id === pickTeamId) ??
         null;
       const nextPick: LmsPick = {
-        id: pick?.id ?? `local-${selectedTeamId}`,
+        id: pick?.id ?? `local-${pickTeamId}`,
         competition_id: competitionId,
         user_id: userId,
         gameweek_id: currentGw.id,
-        team_id: selectedTeamId,
+        team_id: pickTeamId,
         result: pick?.result ?? 'pending',
         team: team ?? undefined,
       };
       setPick(nextPick);
-      setSelectedTeamId(selectedTeamId);
+      setSelectedTeamId(pickTeamId);
       setUsedIds((prev) => {
         const withoutOld = pick?.team_id ? prev.filter((id) => id !== pick.team_id) : prev;
-        return withoutOld.includes(selectedTeamId)
-          ? withoutOld
-          : [...withoutOld, selectedTeamId];
+        return withoutOld.includes(pickTeamId) ? withoutOld : [...withoutOld, pickTeamId];
       });
       setGwPicks((prev) => {
         const others = prev.filter((p) => p.user_id !== userId);
@@ -1563,6 +1562,41 @@ export default function LmsCompetitionDashboard() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const confirmAction = (
+    title: string,
+    message: string,
+    confirmLabel: string,
+    onConfirm: () => void
+  ) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      if (window.confirm(`${title}\n\n${message}`)) onConfirm();
+      return;
+    }
+    Alert.alert(title, message, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: confirmLabel, onPress: onConfirm },
+    ]);
+  };
+
+  const requestConfirmPick = (teamId: string) => {
+    if (!currentGw || saving) return;
+    const team =
+      teams.find((t) => t.id === teamId) ??
+      competitionTeams.find((t) => t.id === teamId) ??
+      null;
+    const teamName = team ? lmsDisplayTeamName(team.name) : 'this team';
+    const updating = !!pick && pick.team_id !== teamId;
+    confirmAction(
+      updating || pick ? 'Confirm pick update' : 'Confirm pick',
+      `Lock in ${teamName} for GW${currentGw.number}? You can change this until the deadline.`,
+      pick ? 'Update pick' : 'Lock in pick',
+      () => {
+        setSelectedTeamId(teamId);
+        void onSavePick(teamId);
+      }
+    );
   };
 
   const confirmDestructive = (
@@ -3525,7 +3559,9 @@ export default function LmsCompetitionDashboard() {
                           saving ||
                           !playingTeamIds.has(selectedTeamId)
                         }
-                        onPress={() => void onSavePick()}
+                        onPress={() => {
+                          if (selectedTeamId) requestConfirmPick(selectedTeamId);
+                        }}
                       >
                         {saving ? (
                           <ActivityIndicator color={theme.colors.white} />
@@ -3566,10 +3602,10 @@ export default function LmsCompetitionDashboard() {
                               !pickable && styles.teamTileDisabled,
                             ]}
                             onPress={() => {
-                              if (!pickable) return;
-                              setSelectedTeamId(t.id);
+                              if (!pickable || saving) return;
+                              requestConfirmPick(t.id);
                             }}
-                            disabled={!pickable}
+                            disabled={!pickable || saving}
                             accessibilityRole="button"
                             accessibilityState={{ disabled: !pickable, selected }}
                             accessibilityLabel={
