@@ -39,6 +39,7 @@ import {
 } from '@/lib/fundraiserBranding';
 import { racingCreateCompetition } from '@/lib/racingAdminApi';
 import { canCreateCompetitions } from '@/lib/adminSession';
+import { CreateCompetitionUpgradeCta } from '@/components/CreateCompetitionUpgradeCta';
 import {
   coursesForRegion,
   displayRacingCourseName,
@@ -1286,6 +1287,9 @@ export default function HomeScreen() {
 
                   <View>
                     <Text style={styles.sectionLabel}>Your leagues</Text>
+                    {!isStaff ? (
+                      <CreateCompetitionUpgradeCta modeLabel="Racing" />
+                    ) : null}
                     {isStaff ? (
                       <>
                         <Pressable

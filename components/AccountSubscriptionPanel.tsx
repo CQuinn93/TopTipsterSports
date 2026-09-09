@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { formatSportCompetitionStatusLabel } from '@/lib/appUtils';
 import {
@@ -20,7 +21,10 @@ import {
   type SubscriptionEntitlements,
   type SubscriptionUsageCompetition,
 } from '@/lib/subscriptionEntitlements';
-import { formatPublicCreatorPrice } from '@/lib/gamemasterCustomPricing';
+import {
+  CREATOR_PLAN_PRICES,
+  PARTICIPANT_PLAN_PRICES,
+} from '@/lib/subscriptionPlans';
 
 type DetailKey = 'joins' | 'creates' | null;
 
@@ -30,23 +34,11 @@ const COMPETITION_HUB_INFO = {
     '€50 deposit, €10 per month per hub.\n\nWe supply a tablet in a secure box, set up and locked to your club account. Players use it in the venue to make selections and join competitions.\n\nThe deposit is refundable when the hub is returned in good condition.',
 };
 
-const PARTICIPANT_PRICES: Record<ParticipantTier, string> = {
-  user: 'Free',
-  user_plus: '€0.99/mo',
-  user_premium: '€1.99/mo',
-};
-
-const CREATOR_PRICES: Record<Exclude<CreatorTier, 'gamemaster'>, string> = {
-  creator: formatPublicCreatorPrice('creator'),
-  creator_plus: formatPublicCreatorPrice('creator_plus'),
-  creator_pro: formatPublicCreatorPrice('creator_pro'),
-};
-
 function creatorPlanSubtitle(ent: SubscriptionEntitlements, tier: CreatorTier): string {
   if (ent.is_owner) return 'Full platform access';
   if (ent.lifetime_creator_tier && !ent.creator_tier) return 'Lifetime · no payment';
   if (tier === 'gamemaster') return 'Club plan · custom agreement';
-  return CREATOR_PRICES[tier as Exclude<CreatorTier, 'gamemaster'>];
+  return CREATOR_PLAN_PRICES[tier as Exclude<CreatorTier, 'gamemaster'>];
 }
 
 function formatLimit(value: number | null | undefined): string {
@@ -112,7 +104,7 @@ function planSummary(ent: SubscriptionEntitlements): PlanSummary {
   const lifetimePlayer = ent.lifetime_participant_tier === 'user_premium';
   return {
     title: formatParticipantTierLabel(player),
-    subtitle: lifetimePlayer ? 'Lifetime · no payment' : PARTICIPANT_PRICES[player],
+    subtitle: lifetimePlayer ? 'Lifetime · no payment' : PARTICIPANT_PLAN_PRICES[player],
     badge: lifetimePlayer ? 'Lifetime' : undefined,
     isCreatorPlan: false,
   };
@@ -535,12 +527,34 @@ export function AccountSubscriptionPanel({
           lineHeight: 18,
           marginTop: 4,
         },
+        upgradeBox: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          paddingVertical: 14,
+          paddingHorizontal: 14,
+          borderRadius: 14,
+          borderWidth: 1,
+          borderColor: accent,
+          backgroundColor: theme.colors.surface,
+        },
+        upgradeBoxCopy: { flex: 1, minWidth: 0, gap: 4 },
+        upgradeBoxTitle: {
+          fontSize: 16,
+          fontWeight: '700',
+          color: theme.colors.text,
+        },
+        upgradeBoxHint: {
+          fontSize: 13,
+          lineHeight: 18,
+          color: theme.colors.textMuted,
+        },
         securitySection: {
           gap: 12,
           marginTop: 8,
         },
       }),
-    [theme]
+    [theme, accent]
   );
 
   const loadJoins = useCallback(async () => {
@@ -681,14 +695,31 @@ export function AccountSubscriptionPanel({
           ) : (
             <Text style={styles.upgradeNote}>
               {effectiveParticipantTier(ent) === 'user'
-                ? 'Upgrade to User Plus or User Premium for more joins and no ads — or a Creator plan to run competitions. Payments coming soon.'
-                : 'Need a larger club setup? Contact us for a custom Gamemaster package. Payments coming soon.'}
+                ? 'Upgrade for more joins and no ads — or pick a Creator plan to run competitions.'
+                : 'Need a larger club setup? Ask about a Gamemaster package for clubs and syndicates.'}
             </Text>
           )}
         </PlanCard>
       ) : (
         <Text style={styles.upgradeNote}>Could not load subscription details. Pull to refresh.</Text>
       )}
+
+      {!loading && ent && !ent.is_owner ? (
+        <Pressable
+          style={styles.upgradeBox}
+          onPress={() => router.push('/subscriptions' as any)}
+          accessibilityRole="button"
+          accessibilityLabel="Upgrade subscription"
+        >
+          <View style={styles.upgradeBoxCopy}>
+            <Text style={styles.upgradeBoxTitle}>Upgrade subscription</Text>
+            <Text style={styles.upgradeBoxHint}>
+              Compare Player and Creator plans. Payments via Stripe coming next.
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={accent} />
+        </Pressable>
+      ) : null}
 
       {children ? (
         <View style={styles.securitySection}>

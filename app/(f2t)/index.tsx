@@ -37,6 +37,7 @@ import { canCreateCompetitions } from '@/lib/adminSession';
 import { confirmJoinLimitDisclaimer } from '@/lib/joinLimitDisclaimer';
 import { isFootballCompetitionRegistering } from '@/lib/appUtils';
 import { FundraiserForClub } from '@/components/FundraiserForClub';
+import { CreateCompetitionUpgradeCta } from '@/components/CreateCompetitionUpgradeCta';
 import {
   fetchCompetitionsFundraiserBranding,
   fundraiserKey,
@@ -705,6 +706,9 @@ export default function F2tHomeScreen() {
 
                       <View>
                         <Text style={styles.sectionLabel}>Your leagues</Text>
+                        {!isStaff ? (
+                          <CreateCompetitionUpgradeCta modeLabel="Tipster20" />
+                        ) : null}
                         {isStaff ? (
                           <>
                             <Pressable

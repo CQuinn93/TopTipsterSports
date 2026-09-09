@@ -45,6 +45,7 @@ import {
 import { lmsSessionSetFixtures } from '@/lib/lms/sessionCache';
 import { useRealtimeLmsFixtures } from '@/lib/useRealtimeLmsFixtures';
 import { canCreateCompetitions } from '@/lib/adminSession';
+import { CreateCompetitionUpgradeCta } from '@/components/CreateCompetitionUpgradeCta';
 import { confirmJoinLimitDisclaimer } from '@/lib/joinLimitDisclaimer';
 import { TeamColourChip } from '@/components/lms/TeamColourChip';
 import { LeagueTablePanel } from '@/components/lms/LeagueTablePanel';
@@ -2145,6 +2146,9 @@ export default function LmsHomeScreen() {
 
                     <View>
                       <Text style={styles.sectionLabel}>Your leagues</Text>
+                      {!isStaff ? (
+                        <CreateCompetitionUpgradeCta modeLabel="Last Man Standing" />
+                      ) : null}
                       {isStaff ? (
                         <>
                           <Pressable

@@ -37,6 +37,7 @@ function RootLayoutContent() {
         <Stack.Screen name="index" />
         <Stack.Screen name="competition-hub" />
         <Stack.Screen name="gamemaster-hub" />
+        <Stack.Screen name="subscriptions" />
         <Stack.Screen name="kiosk" />
         <Stack.Screen name="getting-started" />
         <Stack.Screen name="(auth)" />

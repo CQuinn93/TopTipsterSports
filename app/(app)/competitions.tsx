@@ -30,6 +30,7 @@ import {
 } from '@/lib/fundraiserBranding';
 import { useNarrowWebCompact, cfs } from '@/lib/narrowWebTypography';
 import { getProfileRole, isOwnerRole, canCreateCompetitions } from '@/lib/adminSession';
+import { CreateCompetitionUpgradeCta } from '@/components/CreateCompetitionUpgradeCta';
 import {
   racingAdminListCompetitions,
   racingCreateCompetition,
@@ -582,6 +583,8 @@ export default function MyCompetitionsScreen() {
     >
       <Text style={styles.title}>My Competitions</Text>
       <Text style={styles.subtitle}>Tap a competition to open its hub.</Text>
+
+      {!isStaff ? <CreateCompetitionUpgradeCta modeLabel="Racing" /> : null}
 
       {isStaff ? (
         <View style={styles.joinSection}>
