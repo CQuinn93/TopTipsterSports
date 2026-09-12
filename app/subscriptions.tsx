@@ -7,11 +7,19 @@ import {
   ScrollView,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
+import {
+  ACCOUNT_MANAGE_HOST_LABEL,
+  ACCOUNT_WEB_ONLY_MESSAGE,
+  ACCOUNT_WEB_ONLY_TITLE,
+  isAccountManagedOnWebOnly,
+  openAccountManageOnWeb,
+} from '@/lib/accountWebGate';
 import { fetchMyEntitlements, type SubscriptionEntitlements } from '@/lib/subscriptionEntitlements';
 import { GAMEMASTER_CONTACT_NOTE } from '@/lib/subscriptionPlans';
 import { SubscriptionPlanList } from '@/components/SubscriptionPlanList';
@@ -21,6 +29,7 @@ type SubTab = 'player' | 'creator';
 export default function SubscriptionsScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const webOnly = isAccountManagedOnWebOnly();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<SubTab>('player');
   const [entitlements, setEntitlements] = useState<SubscriptionEntitlements | null>(null);
@@ -49,6 +58,12 @@ export default function SubscriptionsScreen() {
   }, [load]);
 
   const accent = theme.colors.accent;
+
+  const openWebAccount = () => {
+    void openAccountManageOnWeb().catch(() => {
+      Alert.alert(ACCOUNT_WEB_ONLY_TITLE, ACCOUNT_WEB_ONLY_MESSAGE);
+    });
+  };
 
   const styles = useMemo(
     () =>
@@ -130,6 +145,40 @@ export default function SubscriptionsScreen() {
           lineHeight: 19,
           color: theme.colors.textMuted,
         },
+        webGateCard: {
+          padding: theme.spacing.lg,
+          borderRadius: theme.radius.md,
+          borderWidth: 1,
+          borderColor: accent,
+          backgroundColor: theme.colors.surface,
+          gap: theme.spacing.sm,
+        },
+        webGateTitle: {
+          fontFamily: theme.fontFamily.baiBold,
+          fontSize: 18,
+          color: theme.colors.text,
+        },
+        webGateBody: {
+          fontFamily: theme.fontFamily.baiLight,
+          fontSize: 14,
+          lineHeight: 20,
+          color: theme.colors.textMuted,
+        },
+        webGateBtn: {
+          marginTop: theme.spacing.sm,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          paddingVertical: 12,
+          borderRadius: theme.radius.md,
+          backgroundColor: accent,
+        },
+        webGateBtnText: {
+          fontFamily: theme.fontFamily.baiSemiBold,
+          fontSize: 14,
+          color: theme.colors.white,
+        },
         center: {
           paddingVertical: 40,
           alignItems: 'center',
@@ -137,6 +186,34 @@ export default function SubscriptionsScreen() {
       }),
     [theme, insets, accent]
   );
+
+  if (webOnly) {
+    return (
+      <View style={styles.root}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={12} accessibilityRole="button">
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+          </Pressable>
+          <Text style={styles.title}>Subscriptions</Text>
+        </View>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+          <View style={styles.webGateCard}>
+            <Text style={styles.webGateTitle}>{ACCOUNT_WEB_ONLY_TITLE}</Text>
+            <Text style={styles.webGateBody}>{ACCOUNT_WEB_ONLY_MESSAGE}</Text>
+            <Pressable
+              style={styles.webGateBtn}
+              onPress={openWebAccount}
+              accessibilityRole="button"
+              accessibilityLabel={`Open ${ACCOUNT_MANAGE_HOST_LABEL}`}
+            >
+              <Ionicons name="open-outline" size={18} color={theme.colors.white} />
+              <Text style={styles.webGateBtnText}>Open {ACCOUNT_MANAGE_HOST_LABEL}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>

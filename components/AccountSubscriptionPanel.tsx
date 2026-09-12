@@ -6,11 +6,19 @@ import {
   Pressable,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import { formatSportCompetitionStatusLabel } from '@/lib/appUtils';
+import {
+  ACCOUNT_MANAGE_HOST_LABEL,
+  ACCOUNT_WEB_ONLY_MESSAGE,
+  ACCOUNT_WEB_ONLY_TITLE,
+  isAccountManagedOnWebOnly,
+  openAccountManageOnWeb,
+} from '@/lib/accountWebGate';
 import {
   fetchMySubscriptionCreatedCompetitions,
   fetchMySubscriptionJoins,
@@ -481,6 +489,7 @@ export function AccountSubscriptionPanel({
   children,
 }: Props) {
   const theme = useTheme();
+  const webOnly = isAccountManagedOnWebOnly();
   const [expanded, setExpanded] = useState(false);
   const [detailExpanded, setDetailExpanded] = useState<DetailKey>(null);
   const [joinsList, setJoinsList] = useState<SubscriptionUsageCompetition[] | null>(null);
@@ -599,11 +608,21 @@ export function AccountSubscriptionPanel({
   const ent = entitlements;
   const plan = ent ? planSummary(ent) : null;
 
+  const openWebAccount = () => {
+    void openAccountManageOnWeb().catch(() => {
+      Alert.alert(ACCOUNT_WEB_ONLY_TITLE, ACCOUNT_WEB_ONLY_MESSAGE);
+    });
+  };
+
   return (
     <View style={styles.root}>
       <View style={styles.profile}>
         <Text style={styles.profileName}>{displayName || 'Your account'}</Text>
-        <Text style={styles.profileMeta}>Manage your plan and account security</Text>
+        <Text style={styles.profileMeta}>
+          {webOnly
+            ? `View your plan here. Account settings are managed at ${ACCOUNT_MANAGE_HOST_LABEL}.`
+            : 'Manage your plan and account security'}
+        </Text>
       </View>
 
       <Text style={styles.sectionLabel}>SUBSCRIPTION</Text>
@@ -694,9 +713,11 @@ export function AccountSubscriptionPanel({
             </>
           ) : (
             <Text style={styles.upgradeNote}>
-              {effectiveParticipantTier(ent) === 'user'
-                ? 'Upgrade for more joins and no ads — or pick a Creator plan to run competitions.'
-                : 'Need a larger club setup? Ask about a Gamemaster package for clubs and syndicates.'}
+              {webOnly
+                ? ACCOUNT_WEB_ONLY_MESSAGE
+                : effectiveParticipantTier(ent) === 'user'
+                  ? 'Upgrade for more joins and no ads — or pick a Creator plan to run competitions.'
+                  : 'Need a larger club setup? Ask about a Gamemaster package for clubs and syndicates.'}
             </Text>
           )}
         </PlanCard>
@@ -705,20 +726,35 @@ export function AccountSubscriptionPanel({
       )}
 
       {!loading && ent && !ent.is_owner ? (
-        <Pressable
-          style={styles.upgradeBox}
-          onPress={() => router.push('/subscriptions' as any)}
-          accessibilityRole="button"
-          accessibilityLabel="Upgrade subscription"
-        >
-          <View style={styles.upgradeBoxCopy}>
-            <Text style={styles.upgradeBoxTitle}>Upgrade subscription</Text>
-            <Text style={styles.upgradeBoxHint}>
-              Compare Player and Creator plans. Payments via Stripe coming next.
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={accent} />
-        </Pressable>
+        webOnly ? (
+          <Pressable
+            style={styles.upgradeBox}
+            onPress={openWebAccount}
+            accessibilityRole="button"
+            accessibilityLabel={`Visit ${ACCOUNT_MANAGE_HOST_LABEL} to manage your account`}
+          >
+            <View style={styles.upgradeBoxCopy}>
+              <Text style={styles.upgradeBoxTitle}>{ACCOUNT_WEB_ONLY_TITLE}</Text>
+              <Text style={styles.upgradeBoxHint}>{ACCOUNT_WEB_ONLY_MESSAGE}</Text>
+            </View>
+            <Ionicons name="open-outline" size={18} color={accent} />
+          </Pressable>
+        ) : (
+          <Pressable
+            style={styles.upgradeBox}
+            onPress={() => router.push('/subscriptions' as any)}
+            accessibilityRole="button"
+            accessibilityLabel="Upgrade subscription"
+          >
+            <View style={styles.upgradeBoxCopy}>
+              <Text style={styles.upgradeBoxTitle}>Upgrade subscription</Text>
+              <Text style={styles.upgradeBoxHint}>
+                Compare Player and Creator plans. Payments via Stripe coming next.
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={accent} />
+          </Pressable>
+        )
       ) : null}
 
       {children ? (

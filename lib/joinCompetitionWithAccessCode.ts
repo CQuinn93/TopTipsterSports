@@ -41,6 +41,7 @@ export async function joinCompetitionWithAccessCode(params: {
       success?: boolean;
       error?: string;
       competition_name?: string;
+      join_request_id?: string;
     };
 
     if (!res?.success) {
@@ -53,6 +54,20 @@ export async function joinCompetitionWithAccessCode(params: {
         kind: 'error',
         message: subscriptionErrorMessage(code, 'Failed to join competition.'),
       };
+    }
+
+    if (res.join_request_id) {
+      void supabase.functions
+        .invoke('notify-racing-join-request', {
+          body: { join_request_id: res.join_request_id },
+        })
+        .then(({ data: fnData, error: fnErr }) => {
+          if (fnErr) console.warn('[racing] notify-racing-join-request', fnErr.message);
+          else console.log('[racing] notify-racing-join-request', fnData);
+        })
+        .catch((e) => {
+          console.warn('[racing] notify-racing-join-request failed', e);
+        });
     }
 
     return { kind: 'request_sent', competitionName: res.competition_name ?? 'Competition' };

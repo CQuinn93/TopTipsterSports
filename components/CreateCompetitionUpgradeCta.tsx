@@ -3,6 +3,11 @@ import { View, Text, StyleSheet, Pressable, Alert, Platform } from 'react-native
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
+import {
+  CREATE_COMP_WEB_ONLY_HINT,
+  isAccountManagedOnWebOnly,
+  openAccountManageOnWeb,
+} from '@/lib/accountWebGate';
 
 type Props = {
   /** Display name of the current game mode, e.g. Tipster20 / Last Man Standing / Racing. */
@@ -11,10 +16,12 @@ type Props = {
 
 /**
  * Shown on My competitions for players who cannot create leagues.
- * Confirms leaving the mode, then opens Creator subscription options.
+ * On web: confirms leaving the mode, then opens Creator subscription options.
+ * On native store apps: directs users to manage account / upgrades on the website.
  */
 export function CreateCompetitionUpgradeCta({ modeLabel }: Props) {
   const theme = useTheme();
+  const webOnly = isAccountManagedOnWebOnly();
 
   const styles = useMemo(
     () =>
@@ -47,11 +54,24 @@ export function CreateCompetitionUpgradeCta({ modeLabel }: Props) {
           fontSize: 13,
           color: theme.colors.accent,
         },
+        mutedHint: {
+          fontFamily: theme.fontFamily.regular,
+          fontSize: 12,
+          color: theme.colors.textMuted,
+          lineHeight: 16,
+        },
       }),
     [theme]
   );
 
   const goToCreatorPlans = () => {
+    if (webOnly) {
+      void openAccountManageOnWeb().catch(() => {
+        Alert.alert('Could not open browser', CREATE_COMP_WEB_ONLY_HINT);
+      });
+      return;
+    }
+
     const title = 'Leave this mode?';
     const message = `You'll leave ${modeLabel} to view Creator subscription options. You can return from the Competition Hub anytime.`;
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
@@ -74,14 +94,30 @@ export function CreateCompetitionUpgradeCta({ modeLabel }: Props) {
       style={styles.wrap}
       onPress={goToCreatorPlans}
       accessibilityRole="button"
-      accessibilityLabel="Want to create your own competition? Upgrade"
+      accessibilityLabel={
+        webOnly
+          ? 'Want to create your own competition? Visit www.toptipster.ie'
+          : 'Want to create your own competition? Upgrade'
+      }
     >
-      <Ionicons name="trophy-outline" size={18} color={theme.colors.accent} />
+      <Ionicons
+        name={webOnly ? 'globe-outline' : 'trophy-outline'}
+        size={18}
+        color={theme.colors.accent}
+      />
       <View style={styles.copy}>
         <Text style={styles.title}>Want to create your own competition?</Text>
-        <Text style={styles.upgrade}>Upgrade</Text>
+        {webOnly ? (
+          <Text style={styles.mutedHint}>{CREATE_COMP_WEB_ONLY_HINT}</Text>
+        ) : (
+          <Text style={styles.upgrade}>Upgrade</Text>
+        )}
       </View>
-      <Ionicons name="chevron-forward" size={16} color={theme.colors.textMuted} />
+      <Ionicons
+        name={webOnly ? 'open-outline' : 'chevron-forward'}
+        size={16}
+        color={theme.colors.textMuted}
+      />
     </Pressable>
   );
 }

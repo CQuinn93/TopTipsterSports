@@ -751,6 +751,7 @@ export default function F2tCompetitionScreen() {
               canManage={canManage}
               isCompManager={isCompManager}
               entry={entry}
+              competitionName={name}
               initialJoinCode={joinCode}
               onEntrySaved={setEntry}
             />

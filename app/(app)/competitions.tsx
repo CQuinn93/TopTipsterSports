@@ -448,6 +448,13 @@ export default function MyCompetitionsScreen() {
         paddingHorizontal: theme.spacing.md,
         paddingVertical: theme.spacing.sm,
         marginBottom: theme.spacing.sm,
+        width: '100%',
+      },
+      createDateWrap: {
+        width: '100%',
+        maxWidth: '100%',
+        minWidth: 0,
+        marginBottom: theme.spacing.sm,
       },
       joinDisplayLabel: {
         fontFamily: theme.fontFamily.regular,
@@ -619,23 +626,28 @@ export default function MyCompetitionsScreen() {
               />
               <Text style={styles.createLabel}>Start date (YYYY-MM-DD)</Text>
               {Platform.OS === 'web' ? (
-                <input
-                  type="date"
-                  value={createStartDate}
-                  onChange={(e) => setCreateStartDate(e.target.value)}
-                  disabled={createLoading}
-                  style={{
-                    fontFamily: theme.fontFamily.input,
-                    fontSize: 16,
-                    color: theme.colors.text,
-                    backgroundColor: theme.colors.background,
-                    border: `1px solid ${theme.colors.border}`,
-                    borderRadius: 8,
-                    padding: 12,
-                    width: '100%',
-                    marginBottom: 8,
-                  }}
-                />
+                <View style={styles.createDateWrap}>
+                  <input
+                    type="date"
+                    value={createStartDate}
+                    onChange={(e) => setCreateStartDate(e.target.value)}
+                    disabled={createLoading}
+                    style={{
+                      fontFamily: theme.fontFamily.input,
+                      fontSize: 16,
+                      color: theme.colors.text,
+                      backgroundColor: theme.colors.background,
+                      border: `1px solid ${theme.colors.border}`,
+                      borderRadius: 8,
+                      padding: '12px',
+                      width: '100%',
+                      maxWidth: '100%',
+                      minWidth: 0,
+                      boxSizing: 'border-box',
+                      display: 'block',
+                    }}
+                  />
+                </View>
               ) : (
                 <TextInput
                   style={styles.joinInput}
@@ -649,24 +661,29 @@ export default function MyCompetitionsScreen() {
               )}
               <Text style={styles.createLabel}>End date (YYYY-MM-DD)</Text>
               {Platform.OS === 'web' ? (
-                <input
-                  type="date"
-                  value={createEndDate}
-                  onChange={(e) => setCreateEndDate(e.target.value)}
-                  disabled={createLoading}
-                  min={createStartDate || undefined}
-                  style={{
-                    fontFamily: theme.fontFamily.input,
-                    fontSize: 16,
-                    color: theme.colors.text,
-                    backgroundColor: theme.colors.background,
-                    border: `1px solid ${theme.colors.border}`,
-                    borderRadius: 8,
-                    padding: 12,
-                    width: '100%',
-                    marginBottom: 8,
-                  }}
-                />
+                <View style={styles.createDateWrap}>
+                  <input
+                    type="date"
+                    value={createEndDate}
+                    onChange={(e) => setCreateEndDate(e.target.value)}
+                    disabled={createLoading}
+                    min={createStartDate || undefined}
+                    style={{
+                      fontFamily: theme.fontFamily.input,
+                      fontSize: 16,
+                      color: theme.colors.text,
+                      backgroundColor: theme.colors.background,
+                      border: `1px solid ${theme.colors.border}`,
+                      borderRadius: 8,
+                      padding: '12px',
+                      width: '100%',
+                      maxWidth: '100%',
+                      minWidth: 0,
+                      boxSizing: 'border-box',
+                      display: 'block',
+                    }}
+                  />
+                </View>
               ) : (
                 <TextInput
                   style={styles.joinInput}

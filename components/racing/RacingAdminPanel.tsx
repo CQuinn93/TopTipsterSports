@@ -15,21 +15,21 @@ import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
-  f2tAdminBroadcastPush,
-  f2tAdminDeleteCompetition,
-  f2tApproveJoin,
-  f2tBroadcastErrorMessage,
-  f2tGetCompetitionJoinCodes,
-  f2tGetJoinNotifyPref,
-  f2tListAssignableManagers,
-  f2tListCompetitionManagers,
-  f2tListPendingForCompetition,
-  f2tRejectJoin,
-  f2tSetCompetitionEntry,
-  f2tSetCompetitionManager,
-  f2tSetJoinNotifyPref,
-  type F2tAssignableManager,
-} from '@/lib/f2t/api';
+  racingAdminBroadcastPush,
+  racingDeleteCompetition,
+  racingApproveJoinRequest,
+  racingBroadcastErrorMessage,
+  racingGetCompetitionJoinCodes,
+  racingGetJoinNotifyPref,
+  racingListAssignableManagers,
+  racingListCompetitionManagers,
+  racingAdminListPendingForCompetition,
+  racingRejectJoinRequest,
+  racingSetCompetitionEntry,
+  racingSetCompetitionManager,
+  racingSetJoinNotifyPref,
+  type RacingAssignableManager,
+} from '@/lib/racingAdminApi';
 
 type AdminSubTab = 'joins' | 'users' | 'notify';
 
@@ -48,12 +48,12 @@ type Props = {
   isCompManager: boolean;
   entry: string | null;
   competitionName?: string | null;
-  /** Seed from f2t_get_competition so the code shows even if admin RPCs partially fail. */
+  /** Seed from racing_get_admin_context so the code shows even if admin RPCs partially fail. */
   initialJoinCode?: string | null;
   onEntrySaved?: (entry: string | null) => void;
 };
 
-export function F2tAdminPanel({
+export function RacingAdminPanel({
   competitionId,
   canManage,
   isCompManager,
@@ -74,7 +74,7 @@ export function F2tAdminPanel({
   const [joinNotifyEnabled, setJoinNotifyEnabled] = useState(false);
   const [joinNotifyBusy, setJoinNotifyBusy] = useState(false);
   const [managerUserIds, setManagerUserIds] = useState<Set<string>>(new Set());
-  const [assignable, setAssignable] = useState<F2tAssignableManager[]>([]);
+  const [assignable, setAssignable] = useState<RacingAssignableManager[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [managerBusyId, setManagerBusyId] = useState<string | null>(null);
@@ -104,7 +104,7 @@ export function F2tAdminPanel({
     try {
       // Load join code on its own so other admin RPC failures don't blank it.
       try {
-        const codes = await f2tGetCompetitionJoinCodes(competitionId);
+        const codes = await racingGetCompetitionJoinCodes(competitionId);
         if (codes.success && codes.join_code) {
           setJoinCode(codes.join_code);
         }
@@ -113,15 +113,24 @@ export function F2tAdminPanel({
       }
 
       const [pending, notifyPref, managers] = await Promise.all([
-        f2tListPendingForCompetition(competitionId),
-        f2tGetJoinNotifyPref(competitionId),
-        f2tListCompetitionManagers(competitionId),
+        racingAdminListPendingForCompetition(competitionId),
+        racingGetJoinNotifyPref(competitionId),
+        racingListCompetitionManagers(competitionId),
       ]);
-      setPendingJoins(pending);
+      setPendingJoins(
+        pending.map((r) => ({
+          id: r.id,
+          user_id: r.user_id,
+          username: r.username ?? r.display_name ?? null,
+          created_at: r.created_at,
+          payment_method: r.payment_method,
+          payment_note: r.payment_note,
+        }))
+      );
       setJoinNotifyEnabled(!!notifyPref.enabled);
       setManagerUserIds(new Set(managers.map((m) => m.user_id)));
       if (canManage) {
-        const list = await f2tListAssignableManagers(competitionId);
+        const list = await racingListAssignableManagers(competitionId);
         setAssignable(list);
       } else {
         setAssignable([]);
@@ -162,7 +171,7 @@ export function F2tAdminPanel({
   const onSaveEntry = async () => {
     setEntrySaving(true);
     try {
-      const res = await f2tSetCompetitionEntry(competitionId, entryDraft);
+      const res = await racingSetCompetitionEntry(competitionId, entryDraft);
       if (!res.success) {
         Alert.alert('Entry fee', res.error ?? 'Could not save');
         return;
@@ -181,7 +190,7 @@ export function F2tAdminPanel({
     const prev = joinNotifyEnabled;
     setJoinNotifyEnabled(next);
     try {
-      const res = await f2tSetJoinNotifyPref(competitionId, next);
+      const res = await racingSetJoinNotifyPref(competitionId, next);
       if (!res.success) {
         setJoinNotifyEnabled(prev);
         Alert.alert('Notifications', res.error ?? 'Could not update preference');
@@ -198,8 +207,8 @@ export function F2tAdminPanel({
     setJoinBusyId(requestId);
     try {
       const res = approve
-        ? await f2tApproveJoin(requestId)
-        : await f2tRejectJoin(requestId);
+        ? await racingApproveJoinRequest(requestId)
+        : await racingRejectJoinRequest(requestId);
       if (!res.success) {
         Alert.alert('Error', res.error ?? 'Action failed');
         return;
@@ -215,7 +224,7 @@ export function F2tAdminPanel({
   const onToggleManager = async (targetUserId: string, next: boolean) => {
     setManagerBusyId(targetUserId);
     try {
-      const res = await f2tSetCompetitionManager(competitionId, targetUserId, next);
+      const res = await racingSetCompetitionManager(competitionId, targetUserId, next);
       if (!res.success) {
         if (res.error === 'manager_limit') {
           Alert.alert('Managers', `You can assign up to ${res.max ?? 3} managers.`);
@@ -237,13 +246,13 @@ export function F2tAdminPanel({
   const onSendBroadcast = async () => {
     setBroadcastSending(true);
     try {
-      const res = await f2tAdminBroadcastPush(
+      const res = await racingAdminBroadcastPush(
         competitionId,
         broadcastTitle.trim(),
         broadcastBody.trim()
       );
       if (!res.success) {
-        Alert.alert('Notify', f2tBroadcastErrorMessage(res.error));
+        Alert.alert('Notify', racingBroadcastErrorMessage(res.error));
         return;
       }
       Alert.alert(
@@ -285,12 +294,12 @@ export function F2tAdminPanel({
         void (async () => {
           setDeleting(true);
           try {
-            const res = await f2tAdminDeleteCompetition(competitionId);
+            const res = await racingDeleteCompetition(competitionId);
             if (!res.success) {
               Alert.alert('Could not delete', res.error ?? 'Unknown error');
               return;
             }
-            router.replace('/(f2t)' as any);
+            router.replace('/(app)' as any);
           } catch (e) {
             Alert.alert(
               'Error',
@@ -663,7 +672,7 @@ export function F2tAdminPanel({
           style={styles.shareInviteBtn}
           onPress={() =>
             router.push({
-              pathname: '/(f2t)/share/[competitionId]',
+              pathname: '/(app)/share/[competitionId]',
               params: { competitionId },
             } as any)
           }
@@ -985,6 +994,26 @@ export function F2tAdminPanel({
       ) : null}
         </>
       )}
+
+      {canManage ? (
+        <View style={{ marginTop: theme.spacing.md, gap: theme.spacing.sm }}>
+          <Text style={styles.poolTitle}>Selections</Text>
+          <Text style={styles.muted}>Open the admin editor for this competition.</Text>
+          <Pressable
+            style={styles.primaryBtn}
+            onPress={() =>
+              router.push({
+                pathname: '/(auth)/admin',
+                params: { returnTo: `/(app)/competition/${competitionId}` },
+              })
+            }
+            accessibilityRole="button"
+            accessibilityLabel="Edit selections"
+          >
+            <Text style={styles.primaryBtnText}>Edit selections</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       {canManage ? (
         <View style={styles.dangerZone}>

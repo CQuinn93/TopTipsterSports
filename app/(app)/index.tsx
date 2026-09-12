@@ -795,6 +795,7 @@ export default function HomeScreen() {
           padding: 12,
           gap: 10,
           marginBottom: 12,
+          overflow: 'hidden',
         },
         createInput: {
           fontFamily: theme.fontFamily.input,
@@ -806,6 +807,13 @@ export default function HomeScreen() {
           paddingHorizontal: 12,
           paddingVertical: 8,
           backgroundColor: theme.colors.surface,
+          width: '100%',
+        },
+        createDateWrap: {
+          width: '100%',
+          maxWidth: '100%',
+          minWidth: 0,
+          alignSelf: 'stretch',
         },
         createFieldLabel: {
           fontFamily: theme.fontFamily.baiSemiBold,
@@ -1344,25 +1352,31 @@ export default function HomeScreen() {
 
                             <Text style={styles.createFieldLabel}>Festival start</Text>
                             {Platform.OS === 'web' ? (
-                              // @ts-expect-error web date input
-                              <input
-                                type="date"
-                                value={createStartDate}
-                                onChange={(e: { target: { value: string } }) =>
-                                  setCreateStartDate(e.target.value)
-                                }
-                                disabled={creating}
-                                style={{
-                                  fontFamily: theme.fontFamily.input,
-                                  fontSize: 14,
-                                  color: theme.colors.text,
-                                  backgroundColor: theme.colors.surface,
-                                  border: `1px solid ${theme.colors.border}`,
-                                  borderRadius: 6,
-                                  padding: 10,
-                                  width: '100%',
-                                }}
-                              />
+                              <View style={styles.createDateWrap}>
+                                {/* @ts-expect-error web date input */}
+                                <input
+                                  type="date"
+                                  value={createStartDate}
+                                  onChange={(e: { target: { value: string } }) =>
+                                    setCreateStartDate(e.target.value)
+                                  }
+                                  disabled={creating}
+                                  style={{
+                                    fontFamily: theme.fontFamily.input,
+                                    fontSize: 14,
+                                    color: theme.colors.text,
+                                    backgroundColor: theme.colors.surface,
+                                    border: `1px solid ${theme.colors.border}`,
+                                    borderRadius: 6,
+                                    padding: '8px 12px',
+                                    width: '100%',
+                                    maxWidth: '100%',
+                                    minWidth: 0,
+                                    boxSizing: 'border-box',
+                                    display: 'block',
+                                  }}
+                                />
+                              </View>
                             ) : (
                               <TextInput
                                 style={styles.createInput}

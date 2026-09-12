@@ -13,15 +13,8 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import { lightTheme } from '@/constants/theme';
-import { supabase } from '@/lib/supabase';
-import {
-  racingAdminListPendingForCompetition,
-  racingApproveJoinRequest,
-  racingRejectJoinRequest,
-  racingDeleteCompetition,
-  racingCanManageCompetition,
-  type RacingJoinRequestRow,
-} from '@/lib/racingAdminApi';
+import { RacingAdminPanel } from '@/components/racing/RacingAdminPanel';
+import { racingGetAdminContext } from '@/lib/racingAdminApi';
 import { FundraiserForClub } from '@/components/FundraiserForClub';
 import {
   fetchCompetitionsFundraiserBranding,
@@ -43,10 +36,11 @@ export default function RacingCompetitionHubScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [canManage, setCanManage] = useState(false);
+  const [canHandleJoins, setCanHandleJoins] = useState(false);
+  const [isCompManager, setIsCompManager] = useState(false);
+  const [entry, setEntry] = useState<string | null>(null);
+  const [joinCode, setJoinCode] = useState<string | null>(null);
   const [tab, setTab] = useState<HubTab>('overview');
-  const [pending, setPending] = useState<RacingJoinRequestRow[]>([]);
-  const [actingId, setActingId] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!competitionId) {
@@ -54,12 +48,13 @@ export default function RacingCompetitionHubScreen() {
       return;
     }
     try {
-      const [compRes, manage] = await Promise.all([
-        supabase.from('competitions').select('id, name').eq('id', competitionId).maybeSingle(),
-        racingCanManageCompetition(competitionId).catch(() => false),
-      ]);
-      if (compRes.error) throw compRes.error;
-      setName((compRes.data as { name?: string } | null)?.name ?? 'Competition');
+      const ctx = await racingGetAdminContext(competitionId);
+      setName(ctx.name ?? 'Competition');
+      setCanManage(!!ctx.can_manage);
+      setCanHandleJoins(!!ctx.can_handle_joins);
+      setIsCompManager(!!ctx.is_manager);
+      setEntry(ctx.entry ?? null);
+      setJoinCode(ctx.join_code ?? ctx.access_code ?? null);
       try {
         const branding = await fetchCompetitionsFundraiserBranding([
           { sport: 'racing', competition_id: competitionId },
@@ -68,13 +63,7 @@ export default function RacingCompetitionHubScreen() {
       } catch {
         setFundraiser(null);
       }
-      setCanManage(!!manage);
-
-      if (manage) {
-        const rows = await racingAdminListPendingForCompetition(competitionId);
-        setPending(rows);
-      } else {
-        setPending([]);
+      if (!ctx.can_handle_joins) {
         setTab((prev) => (prev === 'admin' ? 'overview' : prev));
       }
     } catch (e) {
@@ -93,78 +82,6 @@ export default function RacingCompetitionHubScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     void load();
-  };
-
-  const onApprove = async (requestId: string) => {
-    setActingId(requestId);
-    try {
-      const res = await racingApproveJoinRequest(requestId);
-      if (!res.success) {
-        Alert.alert('Error', res.error ?? 'Could not approve');
-        return;
-      }
-      setPending((prev) => prev.filter((r) => r.id !== requestId));
-    } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not approve');
-    } finally {
-      setActingId(null);
-    }
-  };
-
-  const onReject = async (requestId: string) => {
-    setActingId(requestId);
-    try {
-      const res = await racingRejectJoinRequest(requestId);
-      if (!res.success) {
-        Alert.alert('Error', res.error ?? 'Could not reject');
-        return;
-      }
-      setPending((prev) => prev.filter((r) => r.id !== requestId));
-    } catch (e) {
-      Alert.alert('Error', e instanceof Error ? e.message : 'Could not reject');
-    } finally {
-      setActingId(null);
-    }
-  };
-
-  const openEditSelections = () => {
-    router.push({
-      pathname: '/(auth)/admin',
-      params: {
-        returnTo: `/(app)/competition/${competitionId}`,
-      },
-    });
-  };
-
-  const onDelete = () => {
-    Alert.alert(
-      'Delete competition?',
-      `“${name}” will be permanently deleted, including participants and selections. This cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            void (async () => {
-              setDeleting(true);
-              try {
-                const res = await racingDeleteCompetition(competitionId);
-                if (!res.success) {
-                  Alert.alert('Could not delete', res.error ?? 'Unknown error');
-                  return;
-                }
-                router.back();
-              } catch (e) {
-                Alert.alert('Error', e instanceof Error ? e.message : 'Could not delete');
-              } finally {
-                setDeleting(false);
-              }
-            })();
-          },
-        },
-      ]
-    );
   };
 
   const styles = useMemo(() => {
@@ -239,89 +156,6 @@ export default function RacingCompetitionHubScreen() {
         color: theme.colors.textMuted,
         marginBottom: theme.spacing.md,
       },
-      sectionTitle: {
-        fontFamily: theme.fontFamily.regular,
-        fontSize: cfs(15, compact),
-        color: theme.colors.accent,
-        marginBottom: theme.spacing.xs,
-      },
-      muted: {
-        fontFamily: theme.fontFamily.regular,
-        fontSize: cfs(13, compact),
-        color: theme.colors.textMuted,
-        marginBottom: theme.spacing.md,
-      },
-      requestCard: {
-        backgroundColor: theme.colors.surface,
-        borderRadius: theme.radius.md,
-        borderWidth: cardBorderWidth,
-        borderColor: cardBorder,
-        padding: theme.spacing.md,
-        marginBottom: theme.spacing.sm,
-      },
-      requestName: {
-        fontFamily: theme.fontFamily.regular,
-        fontSize: cfs(15, compact),
-        color: theme.colors.text,
-        fontWeight: '600',
-      },
-      requestMeta: {
-        fontFamily: theme.fontFamily.regular,
-        fontSize: cfs(12, compact),
-        color: theme.colors.textMuted,
-        marginTop: 4,
-        marginBottom: theme.spacing.sm,
-      },
-      actionsRow: { flexDirection: 'row', gap: theme.spacing.sm },
-      approveBtn: {
-        backgroundColor: theme.colors.accent,
-        borderRadius: theme.radius.sm,
-        paddingVertical: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.md,
-      },
-      approveBtnText: {
-        fontFamily: theme.fontFamily.regular,
-        fontSize: cfs(13, compact),
-        fontWeight: '600',
-        color: isLight ? theme.colors.black : theme.colors.white,
-      },
-      rejectBtn: {
-        borderRadius: theme.radius.sm,
-        paddingVertical: theme.spacing.sm,
-        paddingHorizontal: theme.spacing.md,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-      },
-      rejectBtnText: {
-        fontFamily: theme.fontFamily.regular,
-        fontSize: cfs(13, compact),
-        color: theme.colors.textSecondary,
-      },
-      adminActionBtn: {
-        backgroundColor: theme.colors.surface,
-        borderRadius: theme.radius.md,
-        borderWidth: cardBorderWidth,
-        borderColor: cardBorder,
-        padding: theme.spacing.md,
-        marginBottom: theme.spacing.md,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: theme.spacing.md,
-      },
-      dangerBtn: {
-        borderRadius: theme.radius.md,
-        borderWidth: 1,
-        borderColor: theme.colors.error,
-        padding: theme.spacing.md,
-        alignItems: 'center',
-        marginTop: theme.spacing.sm,
-      },
-      dangerBtnText: {
-        fontFamily: theme.fontFamily.regular,
-        fontSize: cfs(14, compact),
-        fontWeight: '600',
-        color: theme.colors.error,
-      },
       centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.lg },
     });
   }, [theme, compact]);
@@ -382,7 +216,7 @@ export default function RacingCompetitionHubScreen() {
           {(
             [
               { key: 'overview' as const, label: 'Overview' },
-              ...(canManage ? [{ key: 'admin' as const, label: 'Admin' }] : []),
+              ...(canHandleJoins ? [{ key: 'admin' as const, label: 'Admin' }] : []),
             ] as const
           ).map((t) => {
             const active = tab === t.key;
@@ -436,79 +270,16 @@ export default function RacingCompetitionHubScreen() {
           </>
         ) : null}
 
-        {tab === 'admin' && canManage ? (
-          <>
-            <Text style={styles.sectionTitle}>Join requests</Text>
-            <Text style={styles.muted}>
-              {pending.length === 0
-                ? 'No pending join requests.'
-                : `${pending.length} waiting for approval.`}
-            </Text>
-            {pending.map((r) => {
-              const busy = actingId === r.id;
-              return (
-                <View key={r.id} style={styles.requestCard}>
-                  <Text style={styles.requestName}>{r.display_name || 'User'}</Text>
-                  <Text style={styles.requestMeta}>
-                    {r.created_at ? new Date(r.created_at).toLocaleString() : ''}
-                  </Text>
-                  {r.payment_method ? (
-                    <Text style={styles.requestMeta}>
-                      {r.payment_method === 'cash'
-                        ? 'Payment: cash at collection'
-                        : r.payment_method === 'online'
-                          ? 'Payment: online'
-                          : `Payment: ${r.payment_method}`}
-                    </Text>
-                  ) : null}
-                  <View style={styles.actionsRow}>
-                    <TouchableOpacity
-                      style={[styles.approveBtn, busy && { opacity: 0.7 }]}
-                      onPress={() => void onApprove(r.id)}
-                      disabled={busy}
-                    >
-                      {busy ? (
-                        <ActivityIndicator size="small" color={theme.colors.black} />
-                      ) : (
-                        <Text style={styles.approveBtnText}>Approve</Text>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.rejectBtn, busy && { opacity: 0.7 }]}
-                      onPress={() => void onReject(r.id)}
-                      disabled={busy}
-                    >
-                      <Text style={styles.rejectBtnText}>Reject</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
-
-            <Text style={[styles.sectionTitle, { marginTop: theme.spacing.md }]}>Selections</Text>
-            <TouchableOpacity style={styles.adminActionBtn} onPress={openEditSelections} activeOpacity={0.8}>
-              <Ionicons name="create-outline" size={22} color={theme.colors.accent} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.linkTitle}>Edit selections</Text>
-                <Text style={styles.muted}>Open the admin editor for this competition.</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
-            </TouchableOpacity>
-
-            <Text style={styles.sectionTitle}>Danger zone</Text>
-            <Text style={styles.muted}>Permanently delete this competition and all related data.</Text>
-            <TouchableOpacity
-              style={[styles.dangerBtn, deleting && { opacity: 0.7 }]}
-              onPress={onDelete}
-              disabled={deleting}
-            >
-              {deleting ? (
-                <ActivityIndicator color={theme.colors.error} />
-              ) : (
-                <Text style={styles.dangerBtnText}>Delete competition</Text>
-              )}
-            </TouchableOpacity>
-          </>
+        {tab === 'admin' && canHandleJoins ? (
+          <RacingAdminPanel
+            competitionId={competitionId}
+            canManage={canManage}
+            isCompManager={isCompManager}
+            entry={entry}
+            competitionName={name}
+            initialJoinCode={joinCode}
+            onEntrySaved={(next) => setEntry(next)}
+          />
         ) : null}
       </ScrollView>
     </View>

@@ -42,6 +42,10 @@ function AppStack() {
       <Stack.Screen name="results" options={{ title: 'Results' }} />
       <Stack.Screen name="leaderboard" options={{ title: 'Leaderboard' }} />
       <Stack.Screen name="competition/[competitionId]" options={{ title: 'Competition' }} />
+      <Stack.Screen
+        name="share/[competitionId]"
+        options={{ headerShown: false, presentation: 'modal' }}
+      />
       <Stack.Screen name="participant-selections" options={{ title: 'Selections' }} />
       <Stack.Screen name="rules" options={{ title: 'Rules' }} />
       <Stack.Screen name="points" options={{ title: 'Points system' }} />
