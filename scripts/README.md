@@ -21,7 +21,7 @@ These scripts use [RapidAPI Horse Racing](https://rapidapi.com/ortegalex/api/hor
 | **lms-auto-assign-missed-picks.ts** | Calls `lms_auto_assign_missed_picks` for every open gameweek past its deadline. Lightweight — no football API. | Manual via GitHub Action `lms-auto-assign-picks.yml`, or cron every 10–15 min on match days. |
 | **send-lms-deadline-reminders.ts** | Web Push to Home Screen subscribers who have not picked before an LMS deadline (includes predicted auto-assign team). See [docs/WEB_PUSH.md](../docs/WEB_PUSH.md). | Every 15 min via GitHub Action `lms-deadline-reminders.yml`. |
 | **sync-football-players-bbs.ts** | Syncs Premier League **player roster** from Big Balls API into `football_players` (linked to `lms_teams`). Owner can also trigger via edge function `sync-football-players-bbs`. | Weekly Monday 06:00 UTC (`sync-football-players-bbs.yml`). |
-| **sync-football-fpl-daily.ts** | Daily FPL `bootstrap-static` — updates `picker_stats` and news hints on `football_players`. Never sets `owner_flagged`. | Daily 06:00 UTC (`sync-football-fpl-daily.yml`). |
+| **sync-football-fpl-daily.ts** | Daily FPL `bootstrap-static` — updates `picker_stats` / news on `football_players`. Auto-excludes (`owner_flagged`) when status is unavailable, unknown return + 0% this/next GW, or expected return ≥ 4 weeks. Re-checks every run; clears prior *auto* flags when rules no longer apply (manual flags kept). | Daily 06:00 UTC (`sync-football-fpl-daily.yml`). |
 | **sync-football-goals.ts** | FPL `event/{gw}/live` — upserts `football_player_gameweek_goals`, then calls `f2t_apply_gameweek_goals`. Chained after LMS football sync. | Same cadence as LMS sync (15 min matchday windows). |
 
 ## Database tables (migrations 010–011)

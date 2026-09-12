@@ -6,12 +6,19 @@ import {
   matchLmsTeam,
   normalizeFootballPosition,
 } from './football-sync/helpers';
+import { evaluateFplAutoExclude } from './football-sync/fplAutoExclude';
 
 /**
  * Daily FPL bootstrap sync: picker_stats + injury/availability hints on football_players.
- * Auto-excludes (owner_flagged) players with FPL status "u" (Unavailable).
  *
- * One FPL HTTP call + one bulk DB read, then only writes rows that changed.
+ * Auto-excludes (owner_flagged) when:
+ * - FPL status is "u" (Unavailable), or
+ * - news has unknown return date and 0% chance this + next GW, or
+ * - news expected return is 4+ weeks (28+ days) away.
+ *
+ * Every run re-reads FPL news/chances for all elements, updates picker_stats when
+ * notes differ, and re-checks return dates so auto-flags can clear if a player
+ * moves inside the 4-week window. Manual owner flags (owner_flagged_by set) are kept.
  *
  * Env: SUPABASE_URL, SUPABASE_SERVICE_KEY
  */
@@ -62,6 +69,8 @@ type DbPlayer = {
   is_active: boolean;
   picker_stats: PickerStats;
   owner_flagged: boolean;
+  owner_flagged_at: string | null;
+  owner_flagged_by: string | null;
 };
 
 type DesiredRow = {
@@ -74,14 +83,17 @@ type DesiredRow = {
   fpl_element_id: number;
   owner_flagged: boolean;
   owner_flagged_at?: string | null;
-  owner_flagged_by?: null;
+  owner_flagged_by?: string | null;
 };
 
 function stableJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-function buildPickerStats(el: FplElement): PickerStats {
+function buildPickerStats(
+  el: FplElement,
+  decision: ReturnType<typeof evaluateFplAutoExclude>
+): PickerStats {
   return {
     season_goals: el.goals_scored,
     season_assists: el.assists,
@@ -98,28 +110,55 @@ function buildPickerStats(el: FplElement): PickerStats {
     chance_of_playing_this_round: el.chance_of_playing_this_round ?? null,
     chance_of_playing_next_round: el.chance_of_playing_next_round ?? null,
     news_added: el.news_added ?? null,
+    expected_return_date: decision.expectedReturnDate,
+    days_until_return: decision.daysUntilReturn,
+    auto_exclude_reason: decision.reason,
   };
 }
 
 function buildDesired(el: FplElement, teamId: string, existing?: DbPlayer | null): DesiredRow {
   const display = el.web_name?.trim() || `${el.first_name} ${el.second_name}`.trim();
   const fullName = `${el.first_name} ${el.second_name}`.trim();
-  const unavailable = el.status === 'u';
-  const ownerFlagged = existing?.owner_flagged === true || unavailable;
+  const decision = evaluateFplAutoExclude({
+    status: el.status,
+    news: el.news,
+    chance_of_playing_this_round: el.chance_of_playing_this_round,
+    chance_of_playing_next_round: el.chance_of_playing_next_round,
+  });
+
+  const manuallyFlagged =
+    existing?.owner_flagged === true && existing.owner_flagged_by != null;
+  const ownerFlagged = manuallyFlagged || decision.exclude;
+
   const row: DesiredRow = {
     team_id: teamId,
     display_name: display,
     full_name: fullName,
     position: normalizeFootballPosition(null, el.element_type),
     is_active: !el.removed,
-    picker_stats: buildPickerStats(el),
+    picker_stats: buildPickerStats(el, decision),
     fpl_element_id: el.id,
     owner_flagged: ownerFlagged,
   };
-  if (unavailable && existing?.owner_flagged !== true) {
-    row.owner_flagged_at = new Date().toISOString();
+
+  if (manuallyFlagged) {
+    return row;
+  }
+
+  if (decision.exclude) {
+    if (existing?.owner_flagged !== true) {
+      row.owner_flagged_at = new Date().toISOString();
+      row.owner_flagged_by = null;
+    } else {
+      // Already auto-flagged — keep timestamp, ensure by stays system/null.
+      row.owner_flagged_by = null;
+    }
+  } else if (existing?.owner_flagged === true && existing.owner_flagged_by == null) {
+    row.owner_flagged = false;
+    row.owner_flagged_at = null;
     row.owner_flagged_by = null;
   }
+
   return row;
 }
 
@@ -140,6 +179,18 @@ function rowNeedsUpdate(existing: DbPlayer, desired: DesiredRow): boolean {
   if (existing.fpl_element_id !== desired.fpl_element_id) return true;
   if (stableJson(existing.picker_stats) !== stableJson(desired.picker_stats)) return true;
   if (desired.owner_flagged !== existing.owner_flagged) return true;
+  if (
+    desired.owner_flagged_at !== undefined &&
+    desired.owner_flagged_at !== existing.owner_flagged_at
+  ) {
+    return true;
+  }
+  if (
+    desired.owner_flagged_by !== undefined &&
+    desired.owner_flagged_by !== existing.owner_flagged_by
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -184,7 +235,7 @@ async function main() {
   const { data: dbRows, error: dbErr } = await supabase
     .from('football_players')
     .select(
-      'id, fpl_element_id, team_id, display_name, full_name, position, is_active, picker_stats, owner_flagged'
+      'id, fpl_element_id, team_id, display_name, full_name, position, is_active, picker_stats, owner_flagged, owner_flagged_at, owner_flagged_by'
     );
   if (dbErr) throw dbErr;
 
@@ -198,7 +249,9 @@ async function main() {
   const toInsert: DesiredRow[] = [];
   const toUpdate: Array<DesiredRow & { id: string; updated_at: string }> = [];
   let skipped = 0;
-  let unavailableInFpl = 0;
+  let autoExcludeCount = 0;
+  let autoCleared = 0;
+  const reasonCounts = new Map<string, number>();
 
   for (const el of boot.elements ?? []) {
     const teamId = fplTeamToLms.get(el.team);
@@ -207,7 +260,22 @@ async function main() {
     const existing =
       byFplId.get(el.id) ?? byName.get(nameKey(teamId, displayNameForMatch(el)));
     const desired = buildDesired(el, teamId, existing);
-    if (el.status === 'u') unavailableInFpl += 1;
+
+    const reason =
+      typeof desired.picker_stats.auto_exclude_reason === 'string'
+        ? (desired.picker_stats.auto_exclude_reason as string)
+        : null;
+    if (reason) {
+      autoExcludeCount += 1;
+      reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+    }
+    if (
+      existing?.owner_flagged === true &&
+      existing.owner_flagged_by == null &&
+      desired.owner_flagged === false
+    ) {
+      autoCleared += 1;
+    }
 
     if (!existing) {
       toInsert.push(desired);
@@ -236,10 +304,16 @@ async function main() {
     await writeChunks(supabase, 'football_players', toUpdate, 'id');
   }
 
+  const reasonSummary = [...reasonCounts.entries()]
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ');
+
   console.log(
     `[fpl-daily] FPL elements: ${boot.elements?.length ?? 0}; ` +
       `inserted: ${toInsert.length}; updated: ${toUpdate.length}; ` +
-      `unchanged: ${skipped}; unavailable in FPL: ${unavailableInFpl}`
+      `unchanged: ${skipped}; auto-exclude: ${autoExcludeCount}` +
+      (reasonSummary ? ` (${reasonSummary})` : '') +
+      `; auto-cleared: ${autoCleared}`
   );
 }
 
