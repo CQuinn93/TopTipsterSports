@@ -1,5 +1,5 @@
 /**
- * Send LMS pick-deadline Web Push reminders.
+ * Send LMS pick-deadline reminders via Web Push + Expo push.
  *
  * Env:
  *   SUPABASE_URL
@@ -22,9 +22,11 @@ type ReminderRow = {
   deadline_at: string;
   predicted_team_name: string;
   reminder_window: '2h' | '30m';
-  endpoint: string;
-  p256dh: string;
-  auth: string;
+  channel: 'web' | 'expo';
+  endpoint: string | null;
+  p256dh: string | null;
+  auth: string | null;
+  expo_token: string | null;
 };
 
 function requireEnv(name: string): string {
@@ -36,6 +38,38 @@ function requireEnv(name: string): string {
 function windowLabel(w: string): string {
   if (w === '30m') return 'about 30 minutes';
   return 'about 2 hours';
+}
+
+async function sendExpoPush(
+  token: string,
+  title: string,
+  body: string,
+  data: Record<string, unknown>
+): Promise<'ok' | 'gone' | 'error'> {
+  const res = await fetch('https://exp.host/--/api/v2/push/send', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify([
+      {
+        to: token,
+        title,
+        body,
+        sound: 'default',
+        data,
+      },
+    ]),
+  });
+  const json = (await res.json().catch(() => null)) as {
+    data?: Array<{ status?: string; details?: { error?: string }; message?: string }>;
+  } | null;
+  const ticket = Array.isArray(json?.data) ? json.data[0] : null;
+  if (ticket?.status === 'ok') return 'ok';
+  const err = ticket?.details?.error ?? ticket?.message ?? '';
+  if (typeof err === 'string' && err.includes('DeviceNotRegistered')) return 'gone';
+  return 'error';
 }
 
 async function main() {
@@ -60,39 +94,53 @@ async function main() {
   let sent = 0;
   let failed = 0;
   let pruned = 0;
+  const marked = new Set<string>();
 
   for (const row of rows) {
     const when = windowLabel(row.reminder_window);
     const title = 'Pick deadline closing';
     const body = `${row.competition_name} · GW${row.gameweek_number} closes in ${when}. If you don’t pick you’ll be on ${row.predicted_team_name}.`;
-    const payload = JSON.stringify({
-      title,
-      body,
-      icon: '/apple-touch-icon.png',
-      badge: '/favicon.png',
+    const dataPayload = {
       competitionId: row.competition_id,
       url: `/${row.competition_id}`,
-    });
+    };
 
+    let ok = false;
     try {
-      await webpush.sendNotification(
-        {
-          endpoint: row.endpoint,
-          keys: { p256dh: row.p256dh, auth: row.auth },
-        },
-        payload,
-        { TTL: 60 * 60 }
-      );
-      sent += 1;
-
-      const { error: markErr } = await supabase.rpc('lms_mark_deadline_reminder_sent', {
-        p_user_id: row.user_id,
-        p_competition_id: row.competition_id,
-        p_gameweek_id: row.gameweek_id,
-        p_reminder_window: row.reminder_window,
-      });
-      if (markErr) {
-        console.warn('[lms-reminders] mark sent failed:', markErr.message);
+      if (row.channel === 'expo' && row.expo_token) {
+        const status = await sendExpoPush(row.expo_token, title, body, dataPayload);
+        if (status === 'ok') {
+          ok = true;
+          sent += 1;
+        } else if (status === 'gone') {
+          failed += 1;
+          const { error: delErr } = await supabase
+            .from('expo_push_tokens')
+            .delete()
+            .eq('token', row.expo_token);
+          if (!delErr) pruned += 1;
+        } else {
+          failed += 1;
+        }
+      } else if (row.channel === 'web' && row.endpoint && row.p256dh && row.auth) {
+        await webpush.sendNotification(
+          {
+            endpoint: row.endpoint,
+            keys: { p256dh: row.p256dh, auth: row.auth },
+          },
+          JSON.stringify({
+            title,
+            body,
+            icon: '/apple-touch-icon.png',
+            badge: '/favicon.png',
+            ...dataPayload,
+          }),
+          { TTL: 60 * 60 }
+        );
+        ok = true;
+        sent += 1;
+      } else {
+        failed += 1;
       }
     } catch (e: unknown) {
       failed += 1;
@@ -103,18 +151,35 @@ async function main() {
       const message = e instanceof Error ? e.message : String(e);
       console.warn('[lms-reminders] send failed:', statusCode ?? '', message);
 
-      // Gone / invalid subscription — drop it
       if (statusCode === 404 || statusCode === 410) {
-        const { error: delErr } = await supabase
-          .from('web_push_subscriptions')
-          .delete()
-          .eq('endpoint', row.endpoint);
-        if (!delErr) pruned += 1;
+        if (row.endpoint) {
+          const { error: delErr } = await supabase
+            .from('web_push_subscriptions')
+            .delete()
+            .eq('endpoint', row.endpoint);
+          if (!delErr) pruned += 1;
+        }
+      }
+    }
+
+    if (ok) {
+      const key = `${row.user_id}:${row.competition_id}:${row.gameweek_id}:${row.reminder_window}`;
+      if (!marked.has(key)) {
+        marked.add(key);
+        const { error: markErr } = await supabase.rpc('lms_mark_deadline_reminder_sent', {
+          p_user_id: row.user_id,
+          p_competition_id: row.competition_id,
+          p_gameweek_id: row.gameweek_id,
+          p_reminder_window: row.reminder_window,
+        });
+        if (markErr) {
+          console.warn('[lms-reminders] mark sent failed:', markErr.message);
+        }
       }
     }
   }
 
-  console.log('[lms-reminders] Done.', { sent, failed, pruned });
+  console.log('[lms-reminders] Done.', { sent, failed, pruned, marked: marked.size });
 }
 
 main().catch((e) => {

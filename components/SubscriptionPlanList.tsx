@@ -41,7 +41,10 @@ export function isCurrentSubscriptionPlan(
 }
 
 export function notifySubscriptionPlanCta(item: SubscriptionPlanItem) {
-  const message = `${item.title} checkout is not live yet. Stripe payments will be added next — this screen is for reviewing plans.`;
+  const message =
+    Platform.OS === 'web'
+      ? `${item.title} checkout is not live yet. Web payments will be added next — this screen is for reviewing plans.`
+      : `${item.title} will be available as an in-app purchase soon. You can keep using your current plan in the meantime.`;
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     window.alert(`${item.title}\n\n${message}`);
     return;
@@ -67,7 +70,6 @@ function CatalogPlanCard({
   onSelect,
 }: CatalogPlanCardProps) {
   const theme = useTheme();
-  const ctaLabel = current ? 'Current plan' : 'Select plan';
 
   return (
     <View
@@ -131,12 +133,14 @@ function CatalogPlanCard({
                 { color: current ? theme.colors.textMuted : theme.colors.white },
               ]}
             >
-              {ctaLabel}
+              {current ? 'Current plan' : 'Coming soon'}
             </Text>
           </Pressable>
           {!current ? (
             <Text style={[styles.comingSoon, { color: theme.colors.textMuted }]}>
-              Payments via Stripe coming next. Browse plans for now.
+              {Platform.OS === 'web'
+                ? 'Payments coming soon. Browse plans for now.'
+                : 'In-app purchase coming soon.'}
             </Text>
           ) : null}
         </View>

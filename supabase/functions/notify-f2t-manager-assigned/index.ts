@@ -12,6 +12,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+import { sendPushToUserIds } from "../_shared/sendPush.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -130,14 +131,24 @@ Deno.serve(async (req) => {
 
     const competitionName = (comp as { name?: string } | null)?.name || "the competition";
 
-    const { data: subs, error: subErr } = await admin
-      .from("web_push_subscriptions")
-      .select("endpoint, p256dh, auth")
-      .eq("user_id", userId);
-    if (subErr) throw subErr;
+    const title = "Competition manager";
+    const bodyText = `You have been assigned as a manager for ${competitionName}. ` +
+      `You can accept join requests and get alerts when players ask to join.`;
 
-    const rows = (subs ?? []) as { endpoint: string; p256dh: string; auth: string }[];
-    if (rows.length === 0) {
+    const result = await sendPushToUserIds({
+      admin,
+      webpush,
+      userIds: [userId],
+      title,
+      body: bodyText,
+      data: {
+        competitionId: competitionId,
+        url: `/(f2t)/${competitionId}`,
+      },
+      ttlSeconds: 86400,
+    });
+
+    if (result.devices === 0) {
       return json(200, {
         ok: true,
         skipped: "no_subscription",
@@ -146,55 +157,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    const title = "Competition manager";
-    const bodyText =
-      `You have been assigned as a manager for ${competitionName}. ` +
-      `You can accept join requests and get alerts when players ask to join.`;
-    const payload = JSON.stringify({
-      title,
-      body: bodyText,
-      icon: "/apple-touch-icon.png",
-      badge: "/favicon.png",
-      competitionId,
-      url: `/(f2t)/${competitionId}`,
-    });
-
-    let sent = 0;
-    let failed = 0;
-    let pruned = 0;
-
-    for (const row of rows) {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: row.endpoint,
-            keys: { p256dh: row.p256dh, auth: row.auth },
-          },
-          payload,
-          { TTL: 60 * 60 * 24 },
-        );
-        sent += 1;
-      } catch (e: unknown) {
-        failed += 1;
-        const statusCode =
-          e && typeof e === "object" && "statusCode" in e
-            ? Number((e as { statusCode?: number }).statusCode)
-            : undefined;
-        if (statusCode === 404 || statusCode === 410) {
-          await admin.from("web_push_subscriptions").delete().eq("endpoint", row.endpoint);
-          pruned += 1;
-        }
-      }
-    }
-
     return json(200, {
       ok: true,
       competition_id: competitionId,
       user_id: userId,
-      recipients: rows.length,
-      sent,
-      failed,
-      pruned,
+      recipients: result.devices,
+      sent: result.sent,
+      failed: result.failed,
+      pruned: result.pruned,
     });
   } catch (e) {
     console.error(e);

@@ -13,8 +13,8 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   getActiveWebPushSubscription,
+  getPushPermissionAsync,
   getVapidPublicKey,
-  getWebPushPermission,
   isRunningAsInstalledWebApp,
   isWebPushBoundToCurrentUser,
   isWebPushSupported,
@@ -31,7 +31,7 @@ type Status =
   | 'off'
   | 'on';
 
-/** Compact LMS deadline Web Push opt-in (Home Screen web app). */
+/** Deadline / competition alerts opt-in (Web Push on PWA, Expo push on native). */
 export function LmsPushNotificationsCard() {
   const theme = useTheme();
   const { userId } = useAuth();
@@ -41,10 +41,6 @@ export function LmsPushNotificationsCard() {
 
   const refresh = useCallback(async () => {
     setError(null);
-    if (Platform.OS !== 'web') {
-      setStatus('unsupported');
-      return;
-    }
     if (!isWebPushSupported()) {
       setStatus('unsupported');
       return;
@@ -57,7 +53,7 @@ export function LmsPushNotificationsCard() {
       setStatus('need_homescreen');
       return;
     }
-    const perm = getWebPushPermission();
+    const perm = await getPushPermissionAsync();
     if (perm === 'denied') {
       setStatus('denied');
       return;
@@ -207,7 +203,12 @@ export function LmsPushNotificationsCard() {
   } else if (status === 'not_configured') {
     hint = 'Push is not configured on this deployment yet.';
   } else if (enabled) {
-    hint = 'Uses the same device channel as join-request alerts.';
+    hint =
+      Platform.OS === 'web'
+        ? 'Uses the same device channel as join-request alerts.'
+        : 'Pick deadlines and competition alerts on this device.';
+  } else if (Platform.OS !== 'web') {
+    hint = 'Get alerts before pick deadlines close.';
   }
 
   return (

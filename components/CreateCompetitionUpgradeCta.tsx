@@ -4,9 +4,10 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
-  CREATE_COMP_WEB_ONLY_HINT,
-  isAccountManagedOnWebOnly,
-  openAccountManageOnWeb,
+  CREATE_COMP_COMING_SOON_HINT,
+  isNativeStoreClient,
+  NATIVE_UPGRADES_COMING_SOON_MESSAGE,
+  NATIVE_UPGRADES_COMING_SOON_TITLE,
 } from '@/lib/accountWebGate';
 
 type Props = {
@@ -16,12 +17,12 @@ type Props = {
 
 /**
  * Shown on My competitions for players who cannot create leagues.
- * On web: confirms leaving the mode, then opens Creator subscription options.
- * On native store apps: directs users to manage account / upgrades on the website.
+ * Web: opens Creator subscription options.
+ * Native: Coming soon (IAP later) — does not send users to the website to buy.
  */
 export function CreateCompetitionUpgradeCta({ modeLabel }: Props) {
   const theme = useTheme();
-  const webOnly = isAccountManagedOnWebOnly();
+  const nativeStore = isNativeStoreClient();
 
   const styles = useMemo(
     () =>
@@ -65,10 +66,8 @@ export function CreateCompetitionUpgradeCta({ modeLabel }: Props) {
   );
 
   const goToCreatorPlans = () => {
-    if (webOnly) {
-      void openAccountManageOnWeb().catch(() => {
-        Alert.alert('Could not open browser', CREATE_COMP_WEB_ONLY_HINT);
-      });
+    if (nativeStore) {
+      Alert.alert(NATIVE_UPGRADES_COMING_SOON_TITLE, NATIVE_UPGRADES_COMING_SOON_MESSAGE);
       return;
     }
 
@@ -95,26 +94,26 @@ export function CreateCompetitionUpgradeCta({ modeLabel }: Props) {
       onPress={goToCreatorPlans}
       accessibilityRole="button"
       accessibilityLabel={
-        webOnly
-          ? 'Want to create your own competition? Visit www.toptipster.ie'
+        nativeStore
+          ? 'Want to create your own competition? Coming soon'
           : 'Want to create your own competition? Upgrade'
       }
     >
       <Ionicons
-        name={webOnly ? 'globe-outline' : 'trophy-outline'}
+        name={nativeStore ? 'time-outline' : 'trophy-outline'}
         size={18}
         color={theme.colors.accent}
       />
       <View style={styles.copy}>
         <Text style={styles.title}>Want to create your own competition?</Text>
-        {webOnly ? (
-          <Text style={styles.mutedHint}>{CREATE_COMP_WEB_ONLY_HINT}</Text>
+        {nativeStore ? (
+          <Text style={styles.mutedHint}>{CREATE_COMP_COMING_SOON_HINT}</Text>
         ) : (
           <Text style={styles.upgrade}>Upgrade</Text>
         )}
       </View>
       <Ionicons
-        name={webOnly ? 'open-outline' : 'chevron-forward'}
+        name={nativeStore ? 'hourglass-outline' : 'chevron-forward'}
         size={16}
         color={theme.colors.textMuted}
       />

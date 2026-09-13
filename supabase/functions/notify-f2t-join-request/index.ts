@@ -14,18 +14,12 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+import { sendPushToUserIds } from "../_shared/sendPush.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-cron-secret",
-};
-
-type Recipient = {
-  user_id: string;
-  endpoint: string;
-  p256dh: string;
-  auth: string;
 };
 
 function json(status: number, body: Record<string, unknown>) {
@@ -166,57 +160,50 @@ Deno.serve(async (req) => {
     );
     if (recErr) throw recErr;
 
-    const rows = (recipients ?? []) as Recipient[];
-    const targets = rows.filter((r) => r.user_id !== jr.user_id);
+    const recipientIds = [
+      ...new Set(
+        ((recipients ?? []) as { user_id: string }[])
+          .map((r) => r.user_id)
+          .filter((id) => typeof id === "string" && id !== jr.user_id),
+      ),
+    ];
 
-    const title = "New join request";
-    const bodyText =
-      `${username} has requested to join ${competitionName}. ` +
-      `Please visit the admin panel within the app to accept or reject them.`;
-    const payload = JSON.stringify({
+    const title = isReentry ? "Rejoin request" : "New join request";
+    const bodyText = isReentry
+      ? `${username} wants to rejoin ${competitionName}. Please visit the admin panel within the app to accept or reject them.`
+      : `${username} has requested to join ${competitionName}. Please visit the admin panel within the app to accept or reject them.`;
+
+    if (recipientIds.length === 0) {
+      return json(200, {
+        ok: true,
+        skipped: "no_recipients",
+        join_request_id: joinRequestId,
+        sent: 0,
+      });
+    }
+
+    const result = await sendPushToUserIds({
+      admin,
+      webpush,
+      userIds: recipientIds,
       title,
       body: bodyText,
-      icon: "/apple-touch-icon.png",
-      badge: "/favicon.png",
-      competitionId: jr.competition_id,
-      url: `/(f2t)/${jr.competition_id}`,
+      data: {
+        competitionId: jr.competition_id,
+        url: `/(f2t)/${jr.competition_id}`,
+        kind: isReentry ? "f2t_rejoin_request" : "f2t_join_request",
+      },
+      ttlSeconds: 60 * 60,
     });
-
-    let sent = 0;
-    let failed = 0;
-    let pruned = 0;
-
-    for (const row of targets) {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: row.endpoint,
-            keys: { p256dh: row.p256dh, auth: row.auth },
-          },
-          payload,
-          { TTL: 60 * 60 },
-        );
-        sent += 1;
-      } catch (e: unknown) {
-        failed += 1;
-        const statusCode =
-          e && typeof e === "object" && "statusCode" in e
-            ? Number((e as { statusCode?: number }).statusCode)
-            : undefined;
-        if (statusCode === 404 || statusCode === 410) {
-          await admin.from("web_push_subscriptions").delete().eq("endpoint", row.endpoint);
-          pruned += 1;
-        }
-      }
-    }
 
     return json(200, {
       ok: true,
       join_request_id: joinRequestId,
-      recipients: targets.length,
-      sent,
-      failed,
-      pruned,
+      recipients: recipientIds.length,
+      devices: result.devices,
+      sent: result.sent,
+      failed: result.failed,
+      pruned: result.pruned,
     });
   } catch (e) {
     console.error(e);

@@ -56,6 +56,16 @@ export function getWebPushPermission(): NotificationPermission | 'unsupported' {
   return Notification.permission;
 }
 
+export async function getPushPermissionAsync(): Promise<
+  'default' | 'denied' | 'granted' | 'unsupported'
+> {
+  const p = getWebPushPermission();
+  if (p === 'unsupported') return 'unsupported';
+  if (p === 'granted') return 'granted';
+  if (p === 'denied') return 'denied';
+  return 'default';
+}
+
 export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!isWebPushSupported()) return null;
   const base = (process.env.EXPO_PUBLIC_WEB_BASE_URL ?? '').replace(/\/$/, '');
@@ -168,6 +178,7 @@ export async function unbindWebPushDevice(): Promise<void> {
 /** Drop every saved phone for this account (lost-device / sign out everywhere). */
 export async function unbindAllWebPushDevices(): Promise<void> {
   await (supabase as any).rpc('web_push_unbind_all_devices');
+  await (supabase as any).rpc('expo_push_unbind_all_devices');
 }
 
 export async function isWebPushBoundToCurrentUser(): Promise<boolean> {

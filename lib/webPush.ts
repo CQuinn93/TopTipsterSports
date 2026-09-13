@@ -16,6 +16,9 @@ export const getWebPushPermission = impl.getWebPushPermission as () =>
   | 'denied'
   | 'granted'
   | 'unsupported';
+export const getPushPermissionAsync = impl.getPushPermissionAsync as () => Promise<
+  'default' | 'denied' | 'granted' | 'unsupported'
+>;
 export const ensureServiceWorker = impl.ensureServiceWorker as () => Promise<unknown>;
 export const subscribeWebPush = impl.subscribeWebPush as (
   userId: string

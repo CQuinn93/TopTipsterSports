@@ -56,6 +56,7 @@ import { F2tAlertsPanel } from '@/components/f2t/F2tAlertsPanel';
 import { OwnerGamemasterPromoteFlow } from '@/components/OwnerGamemasterPromoteFlow';
 import { BrandLogo } from '@/components/BrandLogo';
 import { AccountSubscriptionPanel } from '@/components/AccountSubscriptionPanel';
+import { LmsPushNotificationsCard } from '@/components/lms/LmsPushNotificationsCard';
 import { estimateLeagueBillFromActualPlayers } from '@/lib/gamemasterCustomPricing';
 import {
   fetchMyEntitlements,
@@ -1855,6 +1856,9 @@ export default function CompetitionHubScreen() {
             <View style={styles.panel}>
               {tab === 'account' ? (
                 <View style={styles.accountCard}>
+                  <View style={{ marginBottom: 12 }}>
+                    <LmsPushNotificationsCard />
+                  </View>
                   <AccountSubscriptionPanel
                     displayName={displayName}
                     userId={userId}

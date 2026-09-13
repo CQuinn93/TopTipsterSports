@@ -36,7 +36,7 @@ eas build --platform android --profile production
 
 ### First-time setup (Apple credentials)
 
-- Ensure your Apple Developer account is active and you have an App Store Connect app for this bundle ID: `com.cheltenhamtoptipster.app`.
+- Ensure your Apple Developer account is active and you have an App Store Connect app for this bundle ID: `com.toptipstersports.app`.
 - Run a build once; EAS will prompt for Apple ID and help set up credentials:
 
 ```bash

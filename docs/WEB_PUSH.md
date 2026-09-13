@@ -1,6 +1,6 @@
 # Web Push (LMS deadline + join-request reminders)
 
-Home Screen / PWA users can opt in to alerts. Deadline reminders include the auto-assign team. Join-request alerts are **per manager** (creator vs Owner prefs are independent).
+Home Screen / PWA users can opt in to alerts. **Native iOS/Android** apps use Expo push tokens (same Deadline Alerts toggle). Deadline reminders include the auto-assign team. Join-request alerts are **per manager** (creator vs Owner prefs are independent).
 
 ## One-time setup
 
@@ -9,6 +9,7 @@ Home Screen / PWA users can opt in to alerts. Deadline reminders include the aut
 - `071_lms_web_push_reminders.sql` — subscriptions + deadline reminder RPCs  
 - `072_lms_join_notify_prefs.sql` — per-user join notify prefs + recipient RPC  
 - `077_lms_competition_managers.sql` — per-competition join managers + notify recipients  
+- `124_expo_push_tokens.sql` — native Expo push tokens + join-recipient user_ids + deadline channel union  
 
 ### 2. Generate VAPID keys (once)
 
@@ -27,10 +28,14 @@ npx web-push generate-vapid-keys
 
 Redeploy the web app after adding `VAPID_PUBLIC_KEY`.
 
+Native builds use Expo’s push service (no VAPID on device). After adding `expo-notifications`, rebuild with EAS so APNs/FCM credentials are configured.
+
 ### 4. Deadline reminders (cron-job.org)
 
 Every **15 minutes** → workflow `lms-deadline-reminders.yml`  
 See [cron-job-org-setup.md](./cron-job-org-setup.md) Job 5.
+
+The sender delivers to **both** `web_push_subscriptions` and `expo_push_tokens`.
 
 ### 5. Instant join-request alerts (Edge Function)
 

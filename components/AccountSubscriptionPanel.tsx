@@ -14,9 +14,10 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { formatSportCompetitionStatusLabel } from '@/lib/appUtils';
 import {
   ACCOUNT_MANAGE_HOST_LABEL,
-  ACCOUNT_WEB_ONLY_MESSAGE,
-  ACCOUNT_WEB_ONLY_TITLE,
-  isAccountManagedOnWebOnly,
+  GAMEMASTER_WEB_ENQUIRY_MESSAGE,
+  isNativeStoreClient,
+  NATIVE_UPGRADES_COMING_SOON_MESSAGE,
+  NATIVE_UPGRADES_COMING_SOON_TITLE,
   openAccountManageOnWeb,
 } from '@/lib/accountWebGate';
 import {
@@ -489,7 +490,7 @@ export function AccountSubscriptionPanel({
   children,
 }: Props) {
   const theme = useTheme();
-  const webOnly = isAccountManagedOnWebOnly();
+  const nativeStore = isNativeStoreClient();
   const [expanded, setExpanded] = useState(false);
   const [detailExpanded, setDetailExpanded] = useState<DetailKey>(null);
   const [joinsList, setJoinsList] = useState<SubscriptionUsageCompetition[] | null>(null);
@@ -608,9 +609,13 @@ export function AccountSubscriptionPanel({
   const ent = entitlements;
   const plan = ent ? planSummary(ent) : null;
 
-  const openWebAccount = () => {
+  const showComingSoon = () => {
+    Alert.alert(NATIVE_UPGRADES_COMING_SOON_TITLE, NATIVE_UPGRADES_COMING_SOON_MESSAGE);
+  };
+
+  const openGamemasterEnquiry = () => {
     void openAccountManageOnWeb().catch(() => {
-      Alert.alert(ACCOUNT_WEB_ONLY_TITLE, ACCOUNT_WEB_ONLY_MESSAGE);
+      Alert.alert('Could not open browser', GAMEMASTER_WEB_ENQUIRY_MESSAGE);
     });
   };
 
@@ -619,8 +624,8 @@ export function AccountSubscriptionPanel({
       <View style={styles.profile}>
         <Text style={styles.profileName}>{displayName || 'Your account'}</Text>
         <Text style={styles.profileMeta}>
-          {webOnly
-            ? `View your plan here. Account settings are managed at ${ACCOUNT_MANAGE_HOST_LABEL}.`
+          {nativeStore
+            ? 'View your plan here. Player and Creator upgrades are coming soon in the app.'
             : 'Manage your plan and account security'}
         </Text>
       </View>
@@ -713,8 +718,8 @@ export function AccountSubscriptionPanel({
             </>
           ) : (
             <Text style={styles.upgradeNote}>
-              {webOnly
-                ? ACCOUNT_WEB_ONLY_MESSAGE
+              {nativeStore
+                ? NATIVE_UPGRADES_COMING_SOON_MESSAGE
                 : effectiveParticipantTier(ent) === 'user'
                   ? 'Upgrade for more joins and no ads — or pick a Creator plan to run competitions.'
                   : 'Need a larger club setup? Ask about a Gamemaster package for clubs and syndicates.'}
@@ -726,19 +731,35 @@ export function AccountSubscriptionPanel({
       )}
 
       {!loading && ent && !ent.is_owner ? (
-        webOnly ? (
-          <Pressable
-            style={styles.upgradeBox}
-            onPress={openWebAccount}
-            accessibilityRole="button"
-            accessibilityLabel={`Visit ${ACCOUNT_MANAGE_HOST_LABEL} to manage your account`}
-          >
-            <View style={styles.upgradeBoxCopy}>
-              <Text style={styles.upgradeBoxTitle}>{ACCOUNT_WEB_ONLY_TITLE}</Text>
-              <Text style={styles.upgradeBoxHint}>{ACCOUNT_WEB_ONLY_MESSAGE}</Text>
-            </View>
-            <Ionicons name="open-outline" size={18} color={accent} />
-          </Pressable>
+        nativeStore ? (
+          <>
+            <Pressable
+              style={styles.upgradeBox}
+              onPress={showComingSoon}
+              accessibilityRole="button"
+              accessibilityLabel="Upgrades coming soon"
+            >
+              <View style={styles.upgradeBoxCopy}>
+                <Text style={styles.upgradeBoxTitle}>{NATIVE_UPGRADES_COMING_SOON_TITLE}</Text>
+                <Text style={styles.upgradeBoxHint}>
+                  Player and Creator plans will be available as in-app purchases soon.
+                </Text>
+              </View>
+              <Ionicons name="time-outline" size={18} color={accent} />
+            </Pressable>
+            <Pressable
+              style={[styles.upgradeBox, { borderColor: theme.colors.border }]}
+              onPress={openGamemasterEnquiry}
+              accessibilityRole="button"
+              accessibilityLabel={`Enquire about Gamemaster on ${ACCOUNT_MANAGE_HOST_LABEL}`}
+            >
+              <View style={styles.upgradeBoxCopy}>
+                <Text style={styles.upgradeBoxTitle}>Club or syndicate?</Text>
+                <Text style={styles.upgradeBoxHint}>{GAMEMASTER_WEB_ENQUIRY_MESSAGE}</Text>
+              </View>
+              <Ionicons name="open-outline" size={18} color={accent} />
+            </Pressable>
+          </>
         ) : (
           <Pressable
             style={styles.upgradeBox}
@@ -749,7 +770,7 @@ export function AccountSubscriptionPanel({
             <View style={styles.upgradeBoxCopy}>
               <Text style={styles.upgradeBoxTitle}>Upgrade subscription</Text>
               <Text style={styles.upgradeBoxHint}>
-                Compare Player and Creator plans. Payments via Stripe coming next.
+                Compare Player and Creator plans. Checkout coming soon on the web.
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={18} color={accent} />

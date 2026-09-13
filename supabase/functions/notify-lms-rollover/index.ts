@@ -14,6 +14,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
+import { sendPushToUserIds } from "../_shared/sendPush.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,20 +114,25 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: subs, error: subErr } = await admin
-      .from("web_push_subscriptions")
-      .select("endpoint, p256dh, auth, user_id")
-      .in("user_id", userIds);
-    if (subErr) throw subErr;
+    const title = `Rollover for ${competitionName}`;
+    const bodyText = "Visit the competition for more information.";
 
-    const rows = (subs ?? []) as {
-      endpoint: string;
-      p256dh: string;
-      auth: string;
-      user_id: string;
-    }[];
+    const result = await sendPushToUserIds({
+      admin,
+      webpush,
+      userIds,
+      title,
+      body: bodyText,
+      data: {
+        competitionId,
+        url: `/${competitionId}`,
+        competitionName,
+        kind: "lms_rollover",
+      },
+      ttlSeconds: 259200,
+    });
 
-    if (rows.length === 0) {
+    if (result.devices === 0) {
       return json(200, {
         ok: true,
         skipped: "no_subscriptions",
@@ -136,58 +142,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const title = `Rollover for ${competitionName}`;
-    const bodyText = "Visit the competition for more information.";
-    const payload = JSON.stringify({
-      title,
-      body: bodyText,
-      icon: "/apple-touch-icon.png",
-      badge: "/favicon.png",
-      competitionId,
-      url: `/${competitionId}`,
-      competitionName,
-      kind: "lms_rollover",
-    });
-
-    let sent = 0;
-    let failed = 0;
-    let pruned = 0;
-    const notifiedUsers = new Set<string>();
-
-    for (const row of rows) {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: row.endpoint,
-            keys: { p256dh: row.p256dh, auth: row.auth },
-          },
-          payload,
-          { TTL: 60 * 60 * 24 * 3 },
-        );
-        sent += 1;
-        notifiedUsers.add(row.user_id);
-      } catch (e: unknown) {
-        failed += 1;
-        const statusCode =
-          e && typeof e === "object" && "statusCode" in e
-            ? Number((e as { statusCode?: number }).statusCode)
-            : undefined;
-        if (statusCode === 404 || statusCode === 410) {
-          await admin.from("web_push_subscriptions").delete().eq("endpoint", row.endpoint);
-          pruned += 1;
-        }
-      }
-    }
-
     return json(200, {
       ok: true,
       competition_id: competitionId,
       participants: userIds.length,
-      devices: rows.length,
-      users_notified: notifiedUsers.size,
-      sent,
-      failed,
-      pruned,
+      devices: result.devices,
+      users_notified: result.users_notified,
+      sent: result.sent,
+      failed: result.failed,
+      pruned: result.pruned,
     });
   } catch (e) {
     console.error(e);

@@ -29,7 +29,7 @@ eas build:configure
 
 1. **Create the app in App Store Connect** (if not already):
    - [App Store Connect](https://appstoreconnect.apple.com) → Apps → + → New App.
-   - Use bundle ID: `com.cheltenhamtoptipster.app`.
+   - Use bundle ID: `com.toptipstersports.app`.
 
 2. **Build for iOS** (production build for TestFlight):
    ```bash
@@ -67,7 +67,7 @@ You can either use **Google Play internal testing** or **direct APK** for tester
 
 1. **Create the app in Play Console** (if not already):
    - [Google Play Console](https://play.google.com/console) → Create app.
-   - Use package name: `com.cheltenhamtoptipster.app`.
+   - Use package name: `com.toptipstersports.app`.
 
 2. **Build an AAB** (production profile):
    ```bash
