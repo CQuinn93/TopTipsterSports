@@ -30,6 +30,7 @@ import { KioskCompetitionDashboard } from '@/components/kiosk/KioskCompetitionDa
 import { KioskHubHeader } from '@/components/kiosk/KioskHubHeader';
 import { lmsGetMyParticipant, lmsJoinErrorMessage } from '@/lib/lms/api';
 import { f2tJoinErrorMessage } from '@/lib/f2t/api';
+import { invalidJoinCodeMessage } from '@/lib/joinCodeMessages';
 
 type Phase =
   | 'loading'
@@ -236,7 +237,9 @@ export default function KioskScreen() {
             ? lmsJoinErrorMessage(raw)
             : config.sport === 'f2t'
               ? f2tJoinErrorMessage(raw)
-              : raw
+              : raw === 'invalid_code'
+                ? invalidJoinCodeMessage('racing')
+                : raw
         );
         return;
       }

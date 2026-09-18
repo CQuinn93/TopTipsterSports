@@ -3,6 +3,12 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { cancelAllSelectionReminders } from '@/lib/selectionReminderNotifications';
 import { bindWebPushDeviceToCurrentUser, unbindAllWebPushDevices, unbindWebPushDevice } from '@/lib/webPush';
+import {
+  configureRevenueCat,
+  identifyRevenueCatUser,
+  logOutRevenueCatUser,
+  syncCustomerInfoToBackend,
+} from '@/lib/iap';
 
 type AuthContextType = {
   session: Session | null;
@@ -33,7 +39,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!cancelled) {
           setSession(s ?? null);
           setIsLoading(false);
-          if (s?.user?.id) void bindWebPushDeviceToCurrentUser();
+          if (s?.user?.id) {
+            void bindWebPushDeviceToCurrentUser();
+            void configureRevenueCat().then(async () => {
+              await identifyRevenueCatUser(s.user!.id);
+              await syncCustomerInfoToBackend();
+            });
+          }
         }
         clearTimeoutAndDone();
       },
@@ -49,6 +61,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(s ?? null);
       if (s?.user?.id) {
         void bindWebPushDeviceToCurrentUser();
+        void configureRevenueCat().then(async () => {
+          await identifyRevenueCatUser(s.user!.id);
+          await syncCustomerInfoToBackend();
+        });
       }
     });
 
@@ -61,12 +77,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     await unbindWebPushDevice();
+    await logOutRevenueCatUser();
     await cancelAllSelectionReminders();
     await supabase.auth.signOut({ scope: 'local' });
   };
 
   const signOutAllDevices = async () => {
     await unbindAllWebPushDevices();
+    await logOutRevenueCatUser();
     await cancelAllSelectionReminders();
     await supabase.auth.signOut({ scope: 'global' });
   };

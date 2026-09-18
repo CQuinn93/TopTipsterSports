@@ -21,6 +21,7 @@ import { clearAvailableRacesCache } from '@/lib/availableRacesCache';
 import { clearSelectionsBulkCache } from '@/lib/selectionsBulkCache';
 import { getCompetitionDisplayStatus } from '@/lib/appUtils';
 import { joinCompetitionWithAccessCode } from '@/lib/joinCompetitionWithAccessCode';
+import { INVALID_JOIN_CODE_TITLE, invalidJoinCodeMessage } from '@/lib/joinCodeMessages';
 import { confirmJoinLimitDisclaimer } from '@/lib/joinLimitDisclaimer';
 import { FundraiserForClub } from '@/components/FundraiserForClub';
 import {
@@ -313,7 +314,7 @@ export default function MyCompetitionsScreen() {
         return;
       }
       if (outcome.kind === 'invalid_code') {
-        Alert.alert('Invalid code', 'This access code is not recognised.');
+        Alert.alert(INVALID_JOIN_CODE_TITLE, invalidJoinCodeMessage('racing'));
         return;
       }
       if (outcome.kind === 'already_in') {

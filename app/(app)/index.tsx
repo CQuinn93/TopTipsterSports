@@ -30,6 +30,7 @@ import type { ParticipationRow } from '@/lib/availableRacesCache';
 import type { AvailableRaceDay } from '@/lib/availableRacesForUser';
 import { getCompetitionDisplayStatus } from '@/lib/appUtils';
 import { joinCompetitionWithAccessCode } from '@/lib/joinCompetitionWithAccessCode';
+import { INVALID_JOIN_CODE_TITLE, invalidJoinCodeMessage } from '@/lib/joinCodeMessages';
 import { confirmJoinLimitDisclaimer } from '@/lib/joinLimitDisclaimer';
 import { FundraiserForClub } from '@/components/FundraiserForClub';
 import {
@@ -376,7 +377,7 @@ export default function HomeScreen() {
         return;
       }
       if (outcome.kind === 'invalid_code') {
-        Alert.alert('Invalid code', 'This access code is not recognised.');
+        Alert.alert(INVALID_JOIN_CODE_TITLE, invalidJoinCodeMessage('racing'));
         return;
       }
       if (outcome.kind === 'already_in') {

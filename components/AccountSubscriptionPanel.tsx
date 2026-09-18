@@ -14,6 +14,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { formatSportCompetitionStatusLabel } from '@/lib/appUtils';
 import {
   ACCOUNT_MANAGE_HOST_LABEL,
+  canPurchaseInApp,
   GAMEMASTER_WEB_ENQUIRY_MESSAGE,
   isNativeStoreClient,
   NATIVE_UPGRADES_COMING_SOON_MESSAGE,
@@ -491,6 +492,7 @@ export function AccountSubscriptionPanel({
 }: Props) {
   const theme = useTheme();
   const nativeStore = isNativeStoreClient();
+  const iapReady = canPurchaseInApp();
   const [expanded, setExpanded] = useState(false);
   const [detailExpanded, setDetailExpanded] = useState<DetailKey>(null);
   const [joinsList, setJoinsList] = useState<SubscriptionUsageCompetition[] | null>(null);
@@ -625,7 +627,9 @@ export function AccountSubscriptionPanel({
         <Text style={styles.profileName}>{displayName || 'Your account'}</Text>
         <Text style={styles.profileMeta}>
           {nativeStore
-            ? 'View your plan here. Player and Creator upgrades are coming soon in the app.'
+            ? iapReady
+              ? 'View your plan here. Upgrade with in-app purchase.'
+              : 'View your plan here. Player and Creator upgrades are coming soon in the app.'
             : 'Manage your plan and account security'}
         </Text>
       </View>
@@ -731,7 +735,7 @@ export function AccountSubscriptionPanel({
       )}
 
       {!loading && ent && !ent.is_owner ? (
-        nativeStore ? (
+        nativeStore && !iapReady ? (
           <>
             <Pressable
               style={styles.upgradeBox}
@@ -761,20 +765,38 @@ export function AccountSubscriptionPanel({
             </Pressable>
           </>
         ) : (
-          <Pressable
-            style={styles.upgradeBox}
-            onPress={() => router.push('/subscriptions' as any)}
-            accessibilityRole="button"
-            accessibilityLabel="Upgrade subscription"
-          >
-            <View style={styles.upgradeBoxCopy}>
-              <Text style={styles.upgradeBoxTitle}>Upgrade subscription</Text>
-              <Text style={styles.upgradeBoxHint}>
-                Compare Player and Creator plans. Checkout coming soon on the web.
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={accent} />
-          </Pressable>
+          <>
+            <Pressable
+              style={styles.upgradeBox}
+              onPress={() => router.push('/subscriptions' as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Upgrade subscription"
+            >
+              <View style={styles.upgradeBoxCopy}>
+                <Text style={styles.upgradeBoxTitle}>Upgrade subscription</Text>
+                <Text style={styles.upgradeBoxHint}>
+                  {nativeStore
+                    ? 'Compare Player and Creator plans. Pay securely via the App Store or Google Play.'
+                    : 'Compare Player and Creator plans. Checkout coming soon on the web.'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={accent} />
+            </Pressable>
+            {nativeStore ? (
+              <Pressable
+                style={[styles.upgradeBox, { borderColor: theme.colors.border }]}
+                onPress={openGamemasterEnquiry}
+                accessibilityRole="button"
+                accessibilityLabel={`Enquire about Gamemaster on ${ACCOUNT_MANAGE_HOST_LABEL}`}
+              >
+                <View style={styles.upgradeBoxCopy}>
+                  <Text style={styles.upgradeBoxTitle}>Club or syndicate?</Text>
+                  <Text style={styles.upgradeBoxHint}>{GAMEMASTER_WEB_ENQUIRY_MESSAGE}</Text>
+                </View>
+                <Ionicons name="open-outline" size={18} color={accent} />
+              </Pressable>
+            ) : null}
+          </>
         )
       ) : null}
 

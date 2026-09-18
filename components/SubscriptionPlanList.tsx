@@ -6,6 +6,7 @@ import {
   Pressable,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -15,6 +16,9 @@ import {
   type SubscriptionPlanKind,
 } from '@/lib/subscriptionPlans';
 import type { CreatorTier, ParticipantTier, SubscriptionEntitlements } from '@/lib/subscriptionEntitlements';
+import { canPurchaseInApp } from '@/lib/accountWebGate';
+import { iapProductByPlanCatalogId } from '@/lib/iap/products';
+import { purchasePlan, restorePurchases } from '@/lib/iap';
 
 function effectiveParticipantTier(ent: SubscriptionEntitlements): ParticipantTier {
   if (ent.is_owner) return 'user_premium';
@@ -40,23 +44,14 @@ export function isCurrentSubscriptionPlan(
   return effectiveParticipantTier(ent) === item.participantTier;
 }
 
-export function notifySubscriptionPlanCta(item: SubscriptionPlanItem) {
-  const message =
-    Platform.OS === 'web'
-      ? `${item.title} checkout is not live yet. Web payments will be added next — this screen is for reviewing plans.`
-      : `${item.title} will be available as an in-app purchase soon. You can keep using your current plan in the meantime.`;
-  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.alert(`${item.title}\n\n${message}`);
-    return;
-  }
-  Alert.alert(item.title, message);
-}
-
 type CatalogPlanCardProps = {
   item: SubscriptionPlanItem;
   accent: string;
   current: boolean;
   expanded: boolean;
+  busy: boolean;
+  ctaLabel: string;
+  hint: string | null;
   onToggle: () => void;
   onSelect: () => void;
 };
@@ -66,6 +61,9 @@ function CatalogPlanCard({
   accent,
   current,
   expanded,
+  busy,
+  ctaLabel,
+  hint,
   onToggle,
   onSelect,
 }: CatalogPlanCardProps) {
@@ -119,29 +117,29 @@ function CatalogPlanCard({
               styles.cta,
               {
                 backgroundColor: current ? theme.colors.border : accent,
-                opacity: current ? 0.7 : 1,
+                opacity: current || busy ? 0.7 : 1,
               },
             ]}
             onPress={onSelect}
-            disabled={current}
+            disabled={current || busy}
             accessibilityRole="button"
-            accessibilityState={{ disabled: current }}
+            accessibilityState={{ disabled: current || busy }}
           >
-            <Text
-              style={[
-                styles.ctaText,
-                { color: current ? theme.colors.textMuted : theme.colors.white },
-              ]}
-            >
-              {current ? 'Current plan' : 'Coming soon'}
-            </Text>
+            {busy ? (
+              <ActivityIndicator color={theme.colors.white} />
+            ) : (
+              <Text
+                style={[
+                  styles.ctaText,
+                  { color: current ? theme.colors.textMuted : theme.colors.white },
+                ]}
+              >
+                {ctaLabel}
+              </Text>
+            )}
           </Pressable>
-          {!current ? (
-            <Text style={[styles.comingSoon, { color: theme.colors.textMuted }]}>
-              {Platform.OS === 'web'
-                ? 'Payments coming soon. Browse plans for now.'
-                : 'In-app purchase coming soon.'}
-            </Text>
+          {hint && !current ? (
+            <Text style={[styles.comingSoon, { color: theme.colors.textMuted }]}>{hint}</Text>
           ) : null}
         </View>
       ) : null}
@@ -153,20 +151,97 @@ type Props = {
   kind: SubscriptionPlanKind;
   entitlements: SubscriptionEntitlements | null;
   accent: string;
+  onPurchased?: () => void;
 };
 
-export function SubscriptionPlanList({ kind, entitlements, accent }: Props) {
+export function SubscriptionPlanList({ kind, entitlements, accent, onPurchased }: Props) {
   const theme = useTheme();
+  const iapReady = canPurchaseInApp();
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+
   const items = useMemo(
     () => SUBSCRIPTION_PLAN_CATALOG.filter((p) => p.kind === kind),
     [kind]
   );
 
+  const onSelect = async (item: SubscriptionPlanItem) => {
+    // Free User — nothing to buy
+    if (item.id === 'user') {
+      const msg = 'User is the free plan — no purchase needed.';
+      if (Platform.OS === 'web' && typeof window !== 'undefined') window.alert(msg);
+      else Alert.alert(item.title, msg);
+      return;
+    }
+
+    if (Platform.OS === 'web' || !iapReady) {
+      const message =
+        Platform.OS === 'web'
+          ? `${item.title} checkout is not live on the web yet. Native apps will use in-app purchase.`
+          : `${item.title} will be available as an in-app purchase once store products are connected.`;
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`${item.title}\n\n${message}`);
+      } else {
+        Alert.alert(item.title, message);
+      }
+      return;
+    }
+
+    const product = iapProductByPlanCatalogId(item.id);
+    if (!product) {
+      Alert.alert(item.title, 'This plan is not available for in-app purchase.');
+      return;
+    }
+
+    setBusyId(item.id);
+    const result = await purchasePlan(product.planId);
+    setBusyId(null);
+
+    if (result.ok) {
+      Alert.alert('Thank you', `${item.title} is now active on your account.`);
+      onPurchased?.();
+      return;
+    }
+    if (result.cancelled) return;
+    Alert.alert('Purchase failed', result.error);
+  };
+
+  const onRestore = async () => {
+    if (!iapReady) return;
+    setRestoring(true);
+    const result = await restorePurchases();
+    setRestoring(false);
+    if (result.ok) {
+      Alert.alert('Restored', 'Your purchases have been restored.');
+      onPurchased?.();
+      return;
+    }
+    Alert.alert('Restore failed', result.error);
+  };
+
   return (
     <View style={styles.list}>
       {items.map((item) => {
         const current = entitlements ? isCurrentSubscriptionPlan(entitlements, item) : false;
+        const purchasable = item.id !== 'user' && iapReady;
+        const ctaLabel = current
+          ? 'Current plan'
+          : purchasable
+            ? 'Subscribe'
+            : Platform.OS === 'web'
+              ? 'Coming soon'
+              : iapReady
+                ? 'Subscribe'
+                : 'Coming soon';
+        const hint = current
+          ? null
+          : purchasable
+            ? 'Secure payment via the App Store / Google Play.'
+            : Platform.OS === 'web'
+              ? 'Web checkout coming soon. Browse plans for now.'
+              : 'In-app purchase coming soon (connect RevenueCat keys).';
+
         return (
           <CatalogPlanCard
             key={item.id}
@@ -174,11 +249,29 @@ export function SubscriptionPlanList({ kind, entitlements, accent }: Props) {
             accent={accent}
             current={current}
             expanded={expandedId === item.id}
+            busy={busyId === item.id}
+            ctaLabel={ctaLabel}
+            hint={hint}
             onToggle={() => setExpandedId((prev) => (prev === item.id ? null : item.id))}
-            onSelect={() => notifySubscriptionPlanCta(item)}
+            onSelect={() => void onSelect(item)}
           />
         );
       })}
+      {iapReady ? (
+        <Pressable
+          style={styles.restoreBtn}
+          onPress={() => void onRestore()}
+          disabled={restoring}
+          accessibilityRole="button"
+          accessibilityLabel="Restore purchases"
+        >
+          {restoring ? (
+            <ActivityIndicator color={accent} />
+          ) : (
+            <Text style={[styles.restoreText, { color: accent }]}>Restore purchases</Text>
+          )}
+        </Pressable>
+      ) : null}
       {items.length === 0 ? (
         <Text style={[styles.empty, { color: theme.colors.textMuted }]}>No plans in this tab.</Text>
       ) : null}
@@ -252,6 +345,8 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 11,
     alignItems: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
   },
   ctaText: {
     fontSize: 14,
@@ -261,6 +356,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     textAlign: 'center',
+  },
+  restoreBtn: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  restoreText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   empty: {
     fontSize: 13,

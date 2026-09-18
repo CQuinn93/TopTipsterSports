@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { subscriptionErrorMessage } from '@/lib/subscriptionEntitlements';
+import { invalidJoinCodeMessage } from '@/lib/joinCodeMessages';
 
 /** Untyped client for LMS tables/RPCs not yet in generated Database types. */
 const db = supabase as any;
@@ -1897,7 +1898,7 @@ export function lmsPickErrorMessage(code?: string): string {
 export function lmsJoinErrorMessage(code?: string): string {
   switch (code) {
     case 'invalid_code':
-      return 'That access code is not valid.';
+      return invalidJoinCodeMessage('lms');
     case 'code_void':
       return 'This rejoin code is no longer valid for the gameweek.';
     case 'already_in':

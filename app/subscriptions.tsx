@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
   ACCOUNT_MANAGE_HOST_LABEL,
+  canPurchaseInApp,
   GAMEMASTER_WEB_ENQUIRY_MESSAGE,
   isNativeStoreClient,
   NATIVE_UPGRADES_COMING_SOON_MESSAGE,
@@ -30,6 +31,7 @@ export default function SubscriptionsScreen() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const nativeStore = isNativeStoreClient();
+  const iapReady = canPurchaseInApp();
   const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
   const [tab, setTab] = useState<SubTab>('player');
   const [entitlements, setEntitlements] = useState<SubscriptionEntitlements | null>(null);
@@ -219,10 +221,20 @@ export default function SubscriptionsScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        {nativeStore ? (
+        {nativeStore && !iapReady ? (
           <View style={styles.comingSoonBanner}>
             <Text style={styles.comingSoonTitle}>Purchases coming soon</Text>
             <Text style={styles.comingSoonBody}>{NATIVE_UPGRADES_COMING_SOON_MESSAGE}</Text>
+          </View>
+        ) : null}
+
+        {nativeStore && iapReady ? (
+          <View style={styles.comingSoonBanner}>
+            <Text style={styles.comingSoonTitle}>In-app subscriptions</Text>
+            <Text style={styles.comingSoonBody}>
+              Pay securely through the App Store or Google Play. Gamemaster club packages stay as a
+              website enquiry.
+            </Text>
           </View>
         ) : null}
 
@@ -237,7 +249,12 @@ export default function SubscriptionsScreen() {
             <ActivityIndicator color={accent} />
           </View>
         ) : (
-          <SubscriptionPlanList kind={tab} entitlements={entitlements} accent={accent} />
+          <SubscriptionPlanList
+            kind={tab}
+            entitlements={entitlements}
+            accent={accent}
+            onPurchased={() => void load()}
+          />
         )}
 
         <View style={styles.noteCard}>

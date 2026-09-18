@@ -4,7 +4,9 @@ import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
+  canPurchaseInApp,
   CREATE_COMP_COMING_SOON_HINT,
+  CREATE_COMP_IAP_HINT,
   isNativeStoreClient,
   NATIVE_UPGRADES_COMING_SOON_MESSAGE,
   NATIVE_UPGRADES_COMING_SOON_TITLE,
@@ -17,12 +19,14 @@ type Props = {
 
 /**
  * Shown on My competitions for players who cannot create leagues.
- * Web: opens Creator subscription options.
- * Native: Coming soon (IAP later) — does not send users to the website to buy.
+ * Web → Creator plans screen.
+ * Native + IAP configured → Creator plans (in-app purchase).
+ * Native without IAP keys → Coming soon.
  */
 export function CreateCompetitionUpgradeCta({ modeLabel }: Props) {
   const theme = useTheme();
   const nativeStore = isNativeStoreClient();
+  const iapReady = canPurchaseInApp();
 
   const styles = useMemo(
     () =>
@@ -66,7 +70,7 @@ export function CreateCompetitionUpgradeCta({ modeLabel }: Props) {
   );
 
   const goToCreatorPlans = () => {
-    if (nativeStore) {
+    if (nativeStore && !iapReady) {
       Alert.alert(NATIVE_UPGRADES_COMING_SOON_TITLE, NATIVE_UPGRADES_COMING_SOON_MESSAGE);
       return;
     }
@@ -94,26 +98,28 @@ export function CreateCompetitionUpgradeCta({ modeLabel }: Props) {
       onPress={goToCreatorPlans}
       accessibilityRole="button"
       accessibilityLabel={
-        nativeStore
+        nativeStore && !iapReady
           ? 'Want to create your own competition? Coming soon'
           : 'Want to create your own competition? Upgrade'
       }
     >
       <Ionicons
-        name={nativeStore ? 'time-outline' : 'trophy-outline'}
+        name={nativeStore && !iapReady ? 'time-outline' : 'trophy-outline'}
         size={18}
         color={theme.colors.accent}
       />
       <View style={styles.copy}>
         <Text style={styles.title}>Want to create your own competition?</Text>
-        {nativeStore ? (
+        {nativeStore && !iapReady ? (
           <Text style={styles.mutedHint}>{CREATE_COMP_COMING_SOON_HINT}</Text>
+        ) : nativeStore ? (
+          <Text style={styles.mutedHint}>{CREATE_COMP_IAP_HINT}</Text>
         ) : (
           <Text style={styles.upgrade}>Upgrade</Text>
         )}
       </View>
       <Ionicons
-        name={nativeStore ? 'hourglass-outline' : 'chevron-forward'}
+        name={nativeStore && !iapReady ? 'hourglass-outline' : 'chevron-forward'}
         size={16}
         color={theme.colors.textMuted}
       />

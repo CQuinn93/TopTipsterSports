@@ -36,6 +36,7 @@
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-google-mobile-ads": "^16.5.0",
+    "react-native-purchases": "^10.9.1",
     "react-native-qrcode-svg": "^6.3.22",
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",

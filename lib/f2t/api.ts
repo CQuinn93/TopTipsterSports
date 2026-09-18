@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { subscriptionErrorMessage } from '@/lib/subscriptionEntitlements';
+import { invalidJoinCodeMessage } from '@/lib/joinCodeMessages';
 
 const db = supabase as any;
 
@@ -70,7 +71,7 @@ export type F2tSelectionRow = {
 export function f2tJoinErrorMessage(code?: string): string {
   switch (code) {
     case 'invalid_code':
-      return 'Invalid join code.';
+      return invalidJoinCodeMessage('f2t');
     case 'entries_closed':
       return 'Entries are closed for this competition.';
     case 'already_in':
