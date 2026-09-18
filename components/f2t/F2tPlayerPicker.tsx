@@ -180,14 +180,19 @@ function sortValue(p: IndexedPlayer, key: SortKey): number {
 type RowStyles = {
   card: StyleProp<ViewStyle>;
   cardSelected: StyleProp<ViewStyle>;
+  cardInSquad: StyleProp<ViewStyle>;
   cardPress: StyleProp<ViewStyle>;
   cardMain: StyleProp<ViewStyle>;
   nameRow: StyleProp<ViewStyle>;
   name: StyleProp<TextStyle>;
+  nameMuted: StyleProp<TextStyle>;
   meta: StyleProp<TextStyle>;
+  inSquadBadge: StyleProp<ViewStyle>;
+  inSquadBadgeText: StyleProp<TextStyle>;
   statsRow: StyleProp<ViewStyle>;
   statCell: StyleProp<ViewStyle>;
   statValue: StyleProp<TextStyle>;
+  statValueMuted: StyleProp<TextStyle>;
   formBadge: StyleProp<ViewStyle>;
   formBadgeText: StyleProp<TextStyle>;
   statLabel: StyleProp<TextStyle>;
@@ -197,6 +202,7 @@ type RowStyles = {
 type PlayerRowProps = {
   player: IndexedPlayer;
   selected: boolean;
+  inSquad: boolean;
   styles: RowStyles;
   accent: string;
   textColor: string;
@@ -207,6 +213,7 @@ type PlayerRowProps = {
 const PlayerRow = memo(function PlayerRow({
   player: p,
   selected,
+  inSquad,
   styles,
   accent,
   textColor,
@@ -225,9 +232,32 @@ const PlayerRow = memo(function PlayerRow({
     }
   };
 
+  const onPressRow = () => {
+    if (inSquad) {
+      const message = `${p.display_name} is already in your squad and cannot be selected again.`;
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Already in your squad', message);
+      }
+      return;
+    }
+    onToggle(p.id);
+  };
+
   return (
-    <View style={[styles.card, selected && styles.cardSelected]}>
-      <Pressable style={styles.cardPress} onPress={() => onToggle(p.id)}>
+    <View
+      style={[
+        styles.card,
+        selected && styles.cardSelected,
+        inSquad && !selected && styles.cardInSquad,
+      ]}
+    >
+      <Pressable
+        style={styles.cardPress}
+        onPress={onPressRow}
+        accessibilityState={{ selected, disabled: inSquad }}
+      >
         <TeamColourChip
           shortName={p.team_short_name}
           name={p.team_name}
@@ -236,9 +266,14 @@ const PlayerRow = memo(function PlayerRow({
         />
         <View style={styles.cardMain}>
           <View style={styles.nameRow}>
-            <Text style={styles.name} numberOfLines={1}>
+            <Text style={[styles.name, inSquad && styles.nameMuted]} numberOfLines={1}>
               {p.display_name}
             </Text>
+            {inSquad ? (
+              <View style={styles.inSquadBadge}>
+                <Text style={styles.inSquadBadgeText}>In squad</Text>
+              </View>
+            ) : null}
             {p.showNewsIcon ? (
               <Pressable
                 hitSlop={10}
@@ -258,11 +293,13 @@ const PlayerRow = memo(function PlayerRow({
         </View>
         <View style={styles.statsRow}>
           <View style={styles.statCell}>
-            <Text style={styles.statValue}>{p.goalsLabel}</Text>
+            <Text style={[styles.statValue, inSquad && styles.statValueMuted]}>{p.goalsLabel}</Text>
             <Text style={styles.statLabel}>Goals</Text>
           </View>
           <View style={styles.statCell}>
-            <Text style={styles.statValue}>{p.assistsLabel}</Text>
+            <Text style={[styles.statValue, inSquad && styles.statValueMuted]}>
+              {p.assistsLabel}
+            </Text>
             <Text style={styles.statLabel}>Assists</Text>
           </View>
           <View style={styles.statCell}>
@@ -281,12 +318,15 @@ const PlayerRow = memo(function PlayerRow({
             <Text style={styles.statLabel}>Form</Text>
           </View>
           <View style={styles.statCell}>
-            <Text style={styles.statValue}>{p.xgLabel}</Text>
+            <Text style={[styles.statValue, inSquad && styles.statValueMuted]}>{p.xgLabel}</Text>
             <Text style={styles.statLabel}>xG</Text>
           </View>
         </View>
         <View style={styles.checkSlot}>
           {selected ? <Ionicons name="checkmark-circle" size={22} color={accent} /> : null}
+          {inSquad && !selected ? (
+            <Ionicons name="lock-closed" size={16} color={accent} />
+          ) : null}
         </View>
       </Pressable>
     </View>
@@ -304,6 +344,8 @@ type Props = {
   subMode?: boolean;
   /** Player being substituted out — shown at top of the picker in sub mode. */
   outPlayer?: F2tSelectionRow | null;
+  /** Current squad player ids — marked in sub mode so replacements aren’t confused with owned picks. */
+  squadPlayerIds?: string[];
   onClose: () => void;
   onSubmit: (selectedIds: string[]) => void;
 };
@@ -317,6 +359,7 @@ export function F2tPlayerPicker({
   submitting,
   subMode,
   outPlayer,
+  squadPlayerIds,
   onClose,
   onSubmit,
 }: Props) {
@@ -354,6 +397,11 @@ export function F2tPlayerPicker({
   const selectedSetRef = useRef(selectedSet);
   selectedSetRef.current = selectedSet;
 
+  const squadSet = useMemo(() => {
+    if (!subMode) return new Set<string>();
+    return new Set(squadPlayerIds ?? []);
+  }, [subMode, squadPlayerIds]);
+
   const teamOptions = useMemo(() => {
     const byId = new Map<
       string,
@@ -381,6 +429,12 @@ export function F2tPlayerPicker({
       return p.searchText.includes(q);
     });
     list = [...list].sort((a, b) => {
+      // In sub mode, keep already-owned squad players below available ones.
+      if (subMode && squadSet.size > 0) {
+        const aOwned = squadSet.has(a.id) ? 1 : 0;
+        const bOwned = squadSet.has(b.id) ? 1 : 0;
+        if (aOwned !== bOwned) return aOwned - bOwned;
+      }
       if (sortKey === 'name') {
         return a.display_name.localeCompare(b.display_name, undefined, { sensitivity: 'base' });
       }
@@ -389,7 +443,7 @@ export function F2tPlayerPicker({
       return a.display_name.localeCompare(b.display_name, undefined, { sensitivity: 'base' });
     });
     return list;
-  }, [indexedPlayers, search, positionFilter, teamFilterId, sortKey]);
+  }, [indexedPlayers, search, positionFilter, teamFilterId, sortKey, subMode, squadSet]);
 
   const positionLabel =
     POSITION_OPTIONS.find((o) => o.value === positionFilter)?.label ?? 'Position';
@@ -576,6 +630,11 @@ export function F2tPlayerPicker({
           borderColor: theme.colors.accent,
           backgroundColor: theme.colors.accentMuted,
         },
+        cardInSquad: {
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.background,
+          opacity: 0.72,
+        },
         cardPress: {
           flexDirection: 'row',
           alignItems: 'center',
@@ -599,10 +658,27 @@ export function F2tPlayerPicker({
           fontSize: 14,
           color: theme.colors.text,
         },
+        nameMuted: {
+          color: theme.colors.textMuted,
+        },
         meta: {
           fontFamily: theme.fontFamily.baiLight,
           fontSize: 11,
           color: theme.colors.textMuted,
+        },
+        inSquadBadge: {
+          flexShrink: 0,
+          paddingVertical: 2,
+          paddingHorizontal: 6,
+          borderRadius: 4,
+          backgroundColor: theme.colors.accentMuted,
+        },
+        inSquadBadgeText: {
+          fontFamily: theme.fontFamily.baiMedium,
+          fontSize: 10,
+          letterSpacing: 0.2,
+          textTransform: 'uppercase',
+          color: theme.colors.accent,
         },
         statsRow: {
           flexDirection: 'row',
@@ -618,6 +694,9 @@ export function F2tPlayerPicker({
           fontSize: 13,
           color: theme.colors.text,
           lineHeight: 16,
+        },
+        statValueMuted: {
+          color: theme.colors.textMuted,
         },
         formBadge: {
           minWidth: 36,
@@ -653,6 +732,13 @@ export function F2tPlayerPicker({
           fontSize: 13,
           color: theme.colors.textMuted,
         },
+        subHint: {
+          fontFamily: theme.fontFamily.baiLight,
+          fontSize: 12,
+          color: theme.colors.textMuted,
+          textAlign: 'center',
+          lineHeight: 16,
+        },
         footer: {
           paddingHorizontal: theme.spacing.lg,
           paddingTop: theme.spacing.sm,
@@ -686,14 +772,19 @@ export function F2tPlayerPicker({
     () => ({
       card: styles.card,
       cardSelected: styles.cardSelected,
+      cardInSquad: styles.cardInSquad,
       cardPress: styles.cardPress,
       cardMain: styles.cardMain,
       nameRow: styles.nameRow,
       name: styles.name,
+      nameMuted: styles.nameMuted,
       meta: styles.meta,
+      inSquadBadge: styles.inSquadBadge,
+      inSquadBadgeText: styles.inSquadBadgeText,
       statsRow: styles.statsRow,
       statCell: styles.statCell,
       statValue: styles.statValue,
+      statValueMuted: styles.statValueMuted,
       formBadge: styles.formBadge,
       formBadgeText: styles.formBadgeText,
       statLabel: styles.statLabel,
@@ -747,6 +838,13 @@ export function F2tPlayerPicker({
     (playerId: string) => {
       setOpenDropdown(null);
       if (subMode) {
+        if (squadSet.has(playerId)) {
+          Alert.alert(
+            'Already in your squad',
+            'That player is already in your squad. Choose someone else as the replacement.'
+          );
+          return;
+        }
         setDraftIds([playerId]);
         return;
       }
@@ -764,7 +862,7 @@ export function F2tPlayerPicker({
       }
       setDraftIds((prev) => [...prev, playerId]);
     },
-    [subMode]
+    [subMode, squadSet]
   );
 
   const handleSubmit = useCallback(() => {
@@ -772,18 +870,30 @@ export function F2tPlayerPicker({
   }, [draftIds, onSubmit]);
 
   const renderPlayer = useCallback(
-    ({ item }: { item: IndexedPlayer }) => (
-      <PlayerRow
-        player={item}
-        selected={selectedSet.has(item.id)}
-        styles={rowStyles}
-        accent={theme.colors.accent}
-        textColor={theme.colors.text}
-        surfaceFallback={theme.colors.background}
-        onToggle={toggleDraft}
-      />
-    ),
-    [selectedSet, rowStyles, theme.colors.accent, theme.colors.text, theme.colors.background, toggleDraft]
+    ({ item }: { item: IndexedPlayer }) => {
+      const inSquad = squadSet.has(item.id);
+      return (
+        <PlayerRow
+          player={item}
+          selected={selectedSet.has(item.id)}
+          inSquad={inSquad}
+          styles={rowStyles}
+          accent={theme.colors.accent}
+          textColor={theme.colors.text}
+          surfaceFallback={theme.colors.background}
+          onToggle={toggleDraft}
+        />
+      );
+    },
+    [
+      selectedSet,
+      squadSet,
+      rowStyles,
+      theme.colors.accent,
+      theme.colors.text,
+      theme.colors.background,
+      toggleDraft,
+    ]
   );
 
   const renderDropdownTrigger = (
@@ -907,7 +1017,7 @@ export function F2tPlayerPicker({
             style={styles.list}
             contentContainerStyle={styles.listContent}
             data={filteredPlayers}
-            extraData={draftIds}
+            extraData={[draftIds, squadPlayerIds]}
             keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
             onScrollBeginDrag={() => setOpenDropdown(null)}
@@ -927,7 +1037,11 @@ export function F2tPlayerPicker({
         <View style={styles.footer}>
           {!subMode ? (
             <Text style={styles.pickCount}>{draftIds.length} / 20 selected</Text>
-          ) : null}
+          ) : (
+            <Text style={styles.subHint}>
+              Players marked In squad are already yours — pick someone new as the replacement.
+            </Text>
+          )}
           <Pressable style={styles.primaryBtn} onPress={handleSubmit} disabled={submitting}>
             {submitting ? (
               <ActivityIndicator color={theme.colors.white} size="small" />

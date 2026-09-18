@@ -227,7 +227,13 @@ export default function F2tCompetitionScreen() {
           const type = flaggedOut ? 'owner_flag' : 'regular';
           const res = await f2tUseSubstitution(competitionId, subOutId, inId, type);
           if (!res.success) {
-            Alert.alert('Substitution failed', res.error ?? 'Could not substitute');
+            const err = res.error ?? 'Could not substitute';
+            Alert.alert(
+              'Substitution failed',
+              err === 'in_player_already_selected'
+                ? 'That player is already in your squad. Choose someone else.'
+                : err
+            );
             return;
           }
         } else {
@@ -769,6 +775,7 @@ export default function F2tCompetitionScreen() {
         initialSelectedIds={pickedIds}
         submitting={submitting}
         subMode={subMode}
+        squadPlayerIds={selections.map((s) => s.player_id)}
         outPlayer={
           subMode && subOutId
             ? selections.find((s) => s.player_id === subOutId) ?? null

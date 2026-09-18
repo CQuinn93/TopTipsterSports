@@ -1,7 +1,7 @@
-# Send LMS pick-deadline Web Push reminders (Home Screen / PWA subscribers).
+# Send LMS pick-deadline reminders (Web Push + Expo + Resend email).
 # Triggered by cron-job.org (recommended) or manually via workflow_dispatch.
 # Secrets: SUPABASE_URL, SUPABASE_SERVICE_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY.
-# Optional: VAPID_SUBJECT.
+# Optional: VAPID_SUBJECT, RESEND_API_KEY, LMS_REMINDER_FROM_EMAIL, LMS_REMINDER_APP_URL, LMS_REMINDER_DAILY_CAP.
 name: LMS deadline web-push reminders
 
 on:
@@ -17,7 +17,7 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
-      - name: Send LMS deadline reminders
+      - name: Send LMS deadline push reminders
         run: npx tsx scripts/send-lms-deadline-reminders.ts
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -25,3 +25,12 @@ jobs:
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+      - name: Send LMS deadline email reminders
+        run: npx tsx scripts/send-lms-deadline-email-reminders.ts
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          LMS_REMINDER_FROM_EMAIL: ${{ secrets.LMS_REMINDER_FROM_EMAIL }}
+          LMS_REMINDER_APP_URL: ${{ secrets.LMS_REMINDER_APP_URL }}
+          LMS_REMINDER_DAILY_CAP: ${{ secrets.LMS_REMINDER_DAILY_CAP }}

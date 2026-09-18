@@ -37,6 +37,16 @@ See [cron-job-org-setup.md](./cron-job-org-setup.md) Job 5.
 
 The sender delivers to **both** `web_push_subscriptions` and `expo_push_tokens`.
 
+### Email reminders (Resend)
+
+Same workflow also runs `scripts/send-lms-deadline-email-reminders.ts` when `RESEND_API_KEY` is set.
+
+- **Who:** active LMS participants with **no pick** for the due gameweek (confirmed signup email).
+- **When:** ~1 hour before kick-off (deadline is 20 minutes before kick-off).
+- **Migration:** `126_lms_deadline_email_reminders.sql`
+- **GitHub secrets:** `RESEND_API_KEY` (already used by pull-races). Optional: `LMS_REMINDER_FROM_EMAIL` (default `Top Tipster <reminder@toptipster.ie>`), `LMS_REMINDER_APP_URL`, `LMS_REMINDER_DAILY_CAP` (default 90).
+- **From address:** must be a domain verified in Resend (same as password-reset mail). Do **not** use `onboarding@resend.dev` for player emails.
+
 ### 5. Instant join-request alerts (Edge Function)
 
 After a successful join code submit, the **web app** calls `notify-lms-join-request` with the new `join_request_id`. A Database Webhook is optional backup.
