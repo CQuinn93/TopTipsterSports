@@ -65,7 +65,22 @@ export type F2tSelectionRow = {
   scored_gameweek_id: string | null;
   scored_gameweek_number: number | null;
   owner_flagged: boolean;
+  locked_difficulty_rank?: number | null;
   next_match: F2tNextMatch | null;
+};
+
+export type F2tShootoutRow = {
+  shootout_rank: number;
+  player_id: string;
+  display_name: string;
+  team_id: string;
+  team_name: string;
+  team_short_name: string;
+  team_slug: string;
+  scored_at: string | null;
+  scored_gameweek_id: string | null;
+  scored_gameweek_number: number | null;
+  owner_flagged: boolean;
 };
 
 export function f2tJoinErrorMessage(code?: string): string {
@@ -149,12 +164,15 @@ export async function f2tGetCompetition(competitionId: string) {
       status: string;
       regular_sub_used: boolean;
       completed_at: string | null;
+      difficulty_sum?: number | null;
       scored_count: number;
       unscored_count: number;
       selection_count: number;
       sub_eligible_regular: boolean;
     };
     selections?: F2tSelectionRow[];
+    /** Own private shootout picks only — never peers. */
+    shootouts?: F2tShootoutRow[];
     leaderboard?: Array<{
       user_id: string;
       username: string | null;
@@ -183,13 +201,18 @@ export async function f2tListSelectablePlayers(competitionId: string) {
   return row.players ?? [];
 }
 
-export async function f2tSubmitSelections(competitionId: string, playerIds: string[]) {
+export async function f2tSubmitSelections(
+  competitionId: string,
+  playerIds: string[],
+  shootoutPlayerIds: string[]
+) {
   const { data, error } = await db.rpc('f2t_submit_selections', {
     p_competition_id: competitionId,
     p_player_ids: playerIds,
+    p_shootout_player_ids: shootoutPlayerIds,
   });
   if (error) throw error;
-  return data as { success: boolean; error?: string };
+  return data as { success: boolean; error?: string; difficulty_sum?: number };
 }
 
 export async function f2tUseSubstitution(

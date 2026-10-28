@@ -67,27 +67,35 @@ export default function F2tRulesScreen() {
         <Text style={styles.sectionLabel}>Objective</Text>
         <Text style={styles.rule}>
           Pick 20 Premier League players. Each time one of your players scores in a gameweek after
-          your league starts, that slot is checked off. First to 20 goals wins.
+          your league starts, that slot is checked off. First to 20 scored players wins.
         </Text>
         <Text style={styles.sectionLabel}>Selections</Text>
         <Text style={styles.rule}>
-          Submit exactly 20 different players before the competition start gameweek deadline. The
-          same player can appear in multiple leagues you join.
+          Submit exactly 20 different players before the start gameweek deadline, plus 3 private
+          Shootout players ranked 1, 2 and 3. Shootout picks must be different from your main 20
+          and stay hidden from other tipsters.
         </Text>
         <Text style={styles.sectionLabel}>Scoring</Text>
         <Text style={styles.rule}>
           Goals count from the start gameweek onward. Only one check-off per player — extra goals
-          from the same pick do not add extra points.
+          from the same pick do not add extra points. Shootout players also check off when they
+          score, but only matter if the league ends in a First-to-20 tie.
         </Text>
         <Text style={styles.sectionLabel}>Substitutions</Text>
         <Text style={styles.rule}>
-          One regular substitution is allowed if a picked player has not scored. Owner-flagged
-          long-term absences grant a free replacement for unscored flagged players.
+          One regular substitution is allowed on your main 20 if a picked player has not scored
+          (after the competition is more than 3 weeks old and you still have more than 3 unscored
+          players). Owner-flagged long-term absences grant a free replacement for unscored flagged
+          players — including shootout picks. Flagged substitutes are optional; you do not have to
+          move them if you believe they will return and score.
         </Text>
         <Text style={styles.sectionLabel}>Winning</Text>
         <Text style={styles.rule}>
-          The first participant to reach 20 scored players wins. If multiple players finish in the
-          same gameweek, earliest completion time decides the winner.
+          First tipster to 20 scored main players wins. If two or more reach 20 in the same window:
+          sudden-death shootout (rank 1 vs rank 1, then 2, then 3 — anyone whose pick has not scored
+          while another’s has is knocked out). If still tied, highest Team Difficulty sum on the
+          original 20 wins (FPL-based 1–5 ranks frozen at lock; higher = rarer scorers). If still
+          tied, the pot is split.
         </Text>
       </ScrollView>
     </View>

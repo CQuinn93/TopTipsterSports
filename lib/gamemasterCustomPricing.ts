@@ -141,17 +141,17 @@ export const TIPSTER20_CONTINUATION_OPTIONS: {
   {
     key: 'none',
     label: 'No special rule',
-    hint: 'Competition ends when scoring stops; ties follow your club rules outside the app.',
+    hint: 'In-app ladder still applies: First-to-20 → private shootout → team difficulty → split if needed.',
   },
   {
     key: 'allow_split_pot',
     label: 'Allow split pot',
-    hint: 'If two or more players hit 20 in the same window, they share the pot. Common for Tipster20.',
+    hint: 'After shootout and team difficulty, any remaining tie splits the pot. Matches Tipster20 in-app resolution.',
   },
   {
     key: 'playoff_until_sole',
     label: 'Playoff until sole winner',
-    hint: 'Tied players keep going until one Tipster20 lead remains — no automatic split.',
+    hint: 'Shootout + team difficulty try for a sole winner first; only a true dead heat splits.',
   },
 ];
 

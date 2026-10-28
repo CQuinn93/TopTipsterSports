@@ -48,6 +48,8 @@ type FplElement = {
   ict_index: string;
   expected_goals?: string;
   expected_assists?: string;
+  expected_goals_per_90?: number | string;
+  expected_assists_per_90?: number | string;
   points_per_game: string;
   removed: boolean;
 };
@@ -104,6 +106,8 @@ function buildPickerStats(
     ict_index: el.ict_index,
     expected_goals: el.expected_goals ?? null,
     expected_assists: el.expected_assists ?? null,
+    expected_goals_per_90: el.expected_goals_per_90 ?? null,
+    expected_assists_per_90: el.expected_assists_per_90 ?? null,
     points_per_game: el.points_per_game,
     news: el.news ?? '',
     fpl_status: el.status,

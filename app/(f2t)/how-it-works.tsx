@@ -68,22 +68,23 @@ export default function F2tHowItWorksScreen() {
         <Text style={styles.body}>
           Get a join code from your organiser, request entry, and wait for approval.
         </Text>
-        <Text style={styles.step}>2. Pick 20 players</Text>
+        <Text style={styles.step}>2. Pick 20 + shootout</Text>
         <Text style={styles.body}>
-          Use stats and news hints in the picker. Lock in your squad before the start gameweek
-          deadline.
+          Use stats and news hints in the picker. Lock in your main 20 and three private shootout
+          ranks (1–3) before the start gameweek deadline.
         </Text>
         <Text style={styles.step}>3. Team management</Text>
-        <Text style={styles.rule}>
-          Track scored players and upcoming fixtures on your squad cards. Use substitutions from
-          Team Management when a pick is flagged or your regular sub unlocks.
+        <Text style={styles.body}>
+          Track scored players and upcoming fixtures on your squad cards. Use substitutions when a
+          pick is flagged or your regular sub unlocks. Shootout picks can only be moved if flagged.
         </Text>
         <Text style={styles.body}>
           Goals sync after Premier League matches. Your grid updates as players score.
         </Text>
         <Text style={styles.step}>4. Win with 20</Text>
         <Text style={styles.body}>
-          Be the first to check off all 20 picks and you win the league.
+          Be first to check off all 20. If several tipsters hit 20 together, private shootouts
+          decide, then team difficulty, then a split pot.
         </Text>
       </ScrollView>
     </View>

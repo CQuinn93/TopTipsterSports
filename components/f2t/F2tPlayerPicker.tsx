@@ -5,6 +5,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MutableRefObject,
   type ReactNode,
 } from 'react';
 import {
@@ -31,9 +32,31 @@ import {
   formatFplAvailability,
   fplStatusAccentColor,
 } from '@/lib/f2t/fplAvailability';
+import {
+  f2tDifficultyRankFromStats,
+  f2tDifficultyRankLabel,
+} from '@/lib/f2t/difficultyRank';
+import {
+  F2tPickerCoachOverlay,
+  F2T_PICKER_COACH_STEPS,
+  type CoachRect,
+} from '@/components/f2t/F2tPickerCoachOverlay';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const PICKER_COACH_STORAGE_KEY = 'f2t_picker_coach_seen_v1';
+
+type CoachTargetKey =
+  | 'playerInfo'
+  | 'statGoals'
+  | 'statForm'
+  | 'statXg'
+  | 'statDiff'
+  | 'filters';
+
+type CoachTargetRefs = Partial<Record<CoachTargetKey, View | null>>;
 
 type PositionFilter = 'ALL' | 'GK' | 'DEF' | 'MID' | 'FWD';
-type SortKey = 'name' | 'goals' | 'assists' | 'form' | 'xg';
+type SortKey = 'name' | 'goals' | 'assists' | 'form' | 'xg' | 'diff';
 type DropdownKey = 'position' | 'team' | 'sort' | null;
 
 const POSITION_OPTIONS: { value: PositionFilter; label: string }[] = [
@@ -48,7 +71,8 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'goals', label: 'Goals' },
   { value: 'assists', label: 'Assists' },
   { value: 'form', label: 'Form' },
-  { value: 'xg', label: 'xG' },
+  { value: 'xg', label: 'xG/90' },
+  { value: 'diff', label: 'Difficulty' },
   { value: 'name', label: 'Name' },
 ];
 
@@ -102,11 +126,16 @@ type IndexedPlayer = {
   assistsLabel: string;
   formLabel: string;
   xgLabel: string;
+  difficultyRank: number;
+  difficultyLabel: string;
   metaLabel: string;
   availability: ReturnType<typeof formatFplAvailability>;
   showNewsIcon: boolean;
   newsColor: string;
   formColors: { fg: string; bg: string } | null;
+  /** True when FPL/owner status means they may miss the next fixture. */
+  availabilityWarning: boolean;
+  statusLabel: string;
 };
 
 function indexPlayers(players: F2tSelectablePlayer[]): IndexedPlayer[] {
@@ -115,7 +144,16 @@ function indexPlayers(players: F2tSelectablePlayer[]): IndexedPlayer[] {
     const goals = numStat(stats, 'season_goals', 'goals_scored');
     const assists = numStat(stats, 'season_assists', 'assists');
     const form = numStat(stats, 'form');
-    const xg = numStat(stats, 'expected_goals');
+    // Prefer FPL expected_goals_per_90; fall back to season xG / (minutes/90).
+    const xgPer90Direct = numStat(stats, 'expected_goals_per_90');
+    const seasonXg = numStat(stats, 'expected_goals');
+    const minutes = numStat(stats, 'minutes');
+    const xgFromRate =
+      seasonXg != null && minutes != null && minutes >= 90
+        ? seasonXg / (minutes / 90)
+        : null;
+    const xg = xgPer90Direct ?? xgFromRate;
+    const difficultyRank = f2tDifficultyRankFromStats(stats, p.position);
     const availability = formatFplAvailability(stats);
     const showNewsIcon =
       Boolean(availability.news) ||
@@ -152,12 +190,18 @@ function indexPlayers(players: F2tSelectablePlayer[]): IndexedPlayer[] {
       goalsLabel: formatStat(goals),
       assistsLabel: formatStat(assists),
       formLabel: formatStat(form, 1),
-      xgLabel: formatStat(xg, 1),
+      xgLabel: formatStat(xg, 2),
+      difficultyRank,
+      difficultyLabel: f2tDifficultyRankLabel(difficultyRank),
       metaLabel: [p.position, p.team_short_name].filter(Boolean).join(' · '),
       availability,
       showNewsIcon,
       newsColor: fplStatusAccentColor(availability.statusCode),
       formColors: formTone(form),
+      availabilityWarning:
+        Boolean(p.owner_flagged) ||
+        (availability.statusCode !== 'a' && availability.statusCode !== ''),
+      statusLabel: availability.statusLabel || 'Unavailable',
     };
   });
 }
@@ -172,6 +216,9 @@ function sortValue(p: IndexedPlayer, key: SortKey): number {
       return p.sortForm;
     case 'xg':
       return p.sortXg;
+    case 'diff':
+      // Higher difficulty rank = harder / rarer scorers first when sorting desc.
+      return p.difficultyRank;
     default:
       return 0;
   }
@@ -208,6 +255,9 @@ type PlayerRowProps = {
   textColor: string;
   surfaceFallback: string;
   onToggle: (playerId: string) => void;
+  /** When set, this row registers measure targets for the first-time coach. */
+  coachTargetRefs?: MutableRefObject<CoachTargetRefs> | null;
+  isCoachAnchor?: boolean;
 };
 
 const PlayerRow = memo(function PlayerRow({
@@ -219,6 +269,8 @@ const PlayerRow = memo(function PlayerRow({
   textColor,
   surfaceFallback,
   onToggle,
+  coachTargetRefs,
+  isCoachAnchor,
 }: PlayerRowProps) {
   const showNews = (e?: { stopPropagation?: () => void }) => {
     e?.stopPropagation?.();
@@ -245,6 +297,19 @@ const PlayerRow = memo(function PlayerRow({
     onToggle(p.id);
   };
 
+  const showDifficulty = (e?: { stopPropagation?: () => void }) => {
+    e?.stopPropagation?.();
+    const title = `Difficulty ${p.difficultyRank}`;
+    const message =
+      `${p.display_name} is ranked ${p.difficultyRank}/5 (${p.difficultyLabel}).\n\n` +
+      `1 = most likely to score, 5 = very rare. Used for Tipster20 tiebreaks on your original 20.`;
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+
   return (
     <View
       style={[
@@ -264,7 +329,17 @@ const PlayerRow = memo(function PlayerRow({
           slug={p.team_slug}
           size={36}
         />
-        <View style={styles.cardMain}>
+        <View
+          style={styles.cardMain}
+          ref={
+            isCoachAnchor
+              ? (node) => {
+                  if (coachTargetRefs) coachTargetRefs.current.playerInfo = node;
+                }
+              : undefined
+          }
+          collapsable={false}
+        >
           <View style={styles.nameRow}>
             <Text style={[styles.name, inSquad && styles.nameMuted]} numberOfLines={1}>
               {p.display_name}
@@ -292,17 +367,31 @@ const PlayerRow = memo(function PlayerRow({
           </Text>
         </View>
         <View style={styles.statsRow}>
-          <View style={styles.statCell}>
+          <View
+            style={styles.statCell}
+            ref={
+              isCoachAnchor
+                ? (node) => {
+                    if (coachTargetRefs) coachTargetRefs.current.statGoals = node;
+                  }
+                : undefined
+            }
+            collapsable={false}
+          >
             <Text style={[styles.statValue, inSquad && styles.statValueMuted]}>{p.goalsLabel}</Text>
             <Text style={styles.statLabel}>Goals</Text>
           </View>
-          <View style={styles.statCell}>
-            <Text style={[styles.statValue, inSquad && styles.statValueMuted]}>
-              {p.assistsLabel}
-            </Text>
-            <Text style={styles.statLabel}>Assists</Text>
-          </View>
-          <View style={styles.statCell}>
+          <View
+            style={styles.statCell}
+            ref={
+              isCoachAnchor
+                ? (node) => {
+                    if (coachTargetRefs) coachTargetRefs.current.statForm = node;
+                  }
+                : undefined
+            }
+            collapsable={false}
+          >
             <View
               style={[
                 styles.formBadge,
@@ -317,9 +406,42 @@ const PlayerRow = memo(function PlayerRow({
             </View>
             <Text style={styles.statLabel}>Form</Text>
           </View>
-          <View style={styles.statCell}>
+          <View
+            style={styles.statCell}
+            ref={
+              isCoachAnchor
+                ? (node) => {
+                    if (coachTargetRefs) coachTargetRefs.current.statXg = node;
+                  }
+                : undefined
+            }
+            collapsable={false}
+          >
             <Text style={[styles.statValue, inSquad && styles.statValueMuted]}>{p.xgLabel}</Text>
-            <Text style={styles.statLabel}>xG</Text>
+            <Text style={styles.statLabel}>xG/90</Text>
+          </View>
+          <View
+            style={styles.statCell}
+            ref={
+              isCoachAnchor
+                ? (node) => {
+                    if (coachTargetRefs) coachTargetRefs.current.statDiff = node;
+                  }
+                : undefined
+            }
+            collapsable={false}
+          >
+            <Pressable
+              onPress={showDifficulty}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={`Difficulty rank ${p.difficultyRank}, ${p.difficultyLabel}`}
+            >
+              <Text style={[styles.statValue, inSquad && styles.statValueMuted]}>
+                {p.difficultyRank}
+              </Text>
+              <Text style={styles.statLabel}>Diff</Text>
+            </Pressable>
           </View>
         </View>
         <View style={styles.checkSlot}>
@@ -333,6 +455,14 @@ const PlayerRow = memo(function PlayerRow({
   );
 });
 
+type OutPlayerSummary = {
+  player_id: string;
+  display_name: string;
+  team_short_name: string;
+  team_name: string;
+  team_slug: string;
+};
+
 type Props = {
   visible: boolean;
   title: string;
@@ -340,15 +470,20 @@ type Props = {
   loading?: boolean;
   /** Seed selection when the modal opens. Draft toggles stay inside the picker. */
   initialSelectedIds: string[];
+  /** Seed shootout ranks 1–3 (array order) when the modal opens. */
+  initialShootoutIds?: string[];
   submitting?: boolean;
   subMode?: boolean;
   /** Player being substituted out — shown at top of the picker in sub mode. */
-  outPlayer?: F2tSelectionRow | null;
+  outPlayer?: OutPlayerSummary | F2tSelectionRow | null;
   /** Current squad player ids — marked in sub mode so replacements aren’t confused with owned picks. */
   squadPlayerIds?: string[];
   onClose: () => void;
-  onSubmit: (selectedIds: string[]) => void;
+  /** Main 20 ids, plus shootout ranks 1–3 when saving initial selections. */
+  onSubmit: (selectedIds: string[], shootoutIds?: string[]) => void;
 };
+
+type PickerPhase = 'main' | 'shootout';
 
 export function F2tPlayerPicker({
   visible,
@@ -356,6 +491,7 @@ export function F2tPlayerPicker({
   players,
   loading,
   initialSelectedIds,
+  initialShootoutIds,
   submitting,
   subMode,
   outPlayer,
@@ -372,6 +508,16 @@ export function F2tPlayerPicker({
   const [sortKey, setSortKey] = useState<SortKey>('goals');
   const [openDropdown, setOpenDropdown] = useState<DropdownKey>(null);
   const [draftIds, setDraftIds] = useState<string[]>([]);
+  const [draftShootoutIds, setDraftShootoutIds] = useState<string[]>([]);
+  const [phase, setPhase] = useState<PickerPhase>('main');
+  const [coachActive, setCoachActive] = useState(false);
+  const [coachStep, setCoachStep] = useState(0);
+  const [coachTarget, setCoachTarget] = useState<CoachRect | null>(null);
+  const coachTargetRefs = useRef<CoachTargetRefs>({});
+  const filtersCoachRef = useRef<View | null>(null);
+
+  const shouldOfferCoach =
+    visible && !subMode && phase === 'main' && (initialSelectedIds?.length ?? 0) === 0;
 
   useEffect(() => {
     if (!visible) return;
@@ -382,9 +528,78 @@ export function F2tPlayerPicker({
     setSortKey('goals');
     setOpenDropdown(null);
     setDraftIds(initialSelectedIds);
+    setDraftShootoutIds(
+      (initialShootoutIds ?? []).filter(Boolean).slice(0, 3)
+    );
+    setPhase('main');
+    setCoachActive(false);
+    setCoachStep(0);
+    setCoachTarget(null);
     // Seed only when the modal opens — draft toggles must not reset from parent re-renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: visible edge only
   }, [visible]);
+
+  useEffect(() => {
+    if (!shouldOfferCoach) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const seen = await AsyncStorage.getItem(PICKER_COACH_STORAGE_KEY);
+        if (!cancelled && !seen) {
+          // Wait a beat so the first list row mounts and can be measured.
+          setTimeout(() => {
+            if (!cancelled) setCoachActive(true);
+          }, 350);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [shouldOfferCoach, visible]);
+
+  const measureCoachTarget = useCallback((stepIndex: number) => {
+    const stepId = F2T_PICKER_COACH_STEPS[stepIndex]?.id as CoachTargetKey | undefined;
+    if (!stepId) {
+      setCoachTarget(null);
+      return;
+    }
+    const node =
+      stepId === 'filters'
+        ? filtersCoachRef.current
+        : coachTargetRefs.current[stepId] ?? null;
+    if (!node || typeof (node as View).measureInWindow !== 'function') {
+      setCoachTarget(null);
+      return;
+    }
+    (node as View).measureInWindow((x, y, width, height) => {
+      if (width <= 0 || height <= 0) {
+        setCoachTarget(null);
+        return;
+      }
+      setCoachTarget({ x, y, width, height });
+    });
+  }, []);
+
+  const finishCoach = useCallback(async () => {
+    setCoachActive(false);
+    setCoachTarget(null);
+    try {
+      await AsyncStorage.setItem(PICKER_COACH_STORAGE_KEY, '1');
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const onCoachNext = useCallback(() => {
+    if (coachStep >= F2T_PICKER_COACH_STEPS.length - 1) {
+      void finishCoach();
+      return;
+    }
+    setCoachStep((s) => s + 1);
+  }, [coachStep, finishCoach]);
 
   useEffect(() => {
     const handle = setTimeout(() => setSearch(searchInput), SEARCH_DEBOUNCE_MS);
@@ -398,9 +613,18 @@ export function F2tPlayerPicker({
   selectedSetRef.current = selectedSet;
 
   const squadSet = useMemo(() => {
-    if (!subMode) return new Set<string>();
-    return new Set(squadPlayerIds ?? []);
-  }, [subMode, squadPlayerIds]);
+    if (subMode) return new Set(squadPlayerIds ?? []);
+    if (phase === 'shootout') return new Set(draftIds);
+    return new Set<string>();
+  }, [subMode, squadPlayerIds, phase, draftIds]);
+
+  const shootoutRankById = useMemo(() => {
+    const map = new Map<string, number>();
+    draftShootoutIds.forEach((id, idx) => {
+      if (id) map.set(id, idx + 1);
+    });
+    return map;
+  }, [draftShootoutIds]);
 
   const teamOptions = useMemo(() => {
     const byId = new Map<
@@ -444,6 +668,18 @@ export function F2tPlayerPicker({
     });
     return list;
   }, [indexedPlayers, search, positionFilter, teamFilterId, sortKey, subMode, squadSet]);
+
+  useEffect(() => {
+    if (!coachActive) return;
+    const handle = requestAnimationFrame(() => {
+      measureCoachTarget(coachStep);
+    });
+    const retry = setTimeout(() => measureCoachTarget(coachStep), 120);
+    return () => {
+      cancelAnimationFrame(handle);
+      clearTimeout(retry);
+    };
+  }, [coachActive, coachStep, measureCoachTarget, filteredPlayers.length, loading]);
 
   const positionLabel =
     POSITION_OPTIONS.find((o) => o.value === positionFilter)?.label ?? 'Position';
@@ -739,6 +975,33 @@ export function F2tPlayerPicker({
           textAlign: 'center',
           lineHeight: 16,
         },
+        shootoutRankRow: {
+          flexDirection: 'row',
+          gap: 8,
+        },
+        shootoutRankChip: {
+          flex: 1,
+          minWidth: 0,
+          borderRadius: theme.radius.sm,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.surface,
+          paddingVertical: 8,
+          paddingHorizontal: 8,
+          gap: 2,
+        },
+        shootoutRankLabel: {
+          fontFamily: theme.fontFamily.baiBold,
+          fontSize: 10,
+          letterSpacing: 0.3,
+          textTransform: 'uppercase',
+          color: theme.colors.accent,
+        },
+        shootoutRankName: {
+          fontFamily: theme.fontFamily.baiMedium,
+          fontSize: 12,
+          color: theme.colors.text,
+        },
         footer: {
           paddingHorizontal: theme.spacing.lg,
           paddingTop: theme.spacing.sm,
@@ -763,6 +1026,19 @@ export function F2tPlayerPicker({
           fontFamily: theme.fontFamily.baiBold,
           fontSize: 14,
           color: theme.colors.white,
+        },
+        secondaryBtn: {
+          borderRadius: theme.radius.md,
+          paddingVertical: 11,
+          alignItems: 'center',
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: theme.colors.border,
+          backgroundColor: theme.colors.surface,
+        },
+        secondaryBtnText: {
+          fontFamily: theme.fontFamily.baiMedium,
+          fontSize: 13,
+          color: theme.colors.text,
         },
       }),
     [theme, insets]
@@ -834,6 +1110,29 @@ export function F2tPlayerPicker({
     [openDropdown]
   );
 
+  const warnIfFlaggedThen = useCallback(
+    (playerId: string, onContinue: () => void) => {
+      const player = indexedPlayers.find((p) => p.id === playerId);
+      if (!player?.availabilityWarning) {
+        onContinue();
+        return;
+      }
+      const status = player.statusLabel || 'Unavailable';
+      const message =
+        `This player has been marked as ${status}. You can still select this player but there is a chance they may be unavailable in the next upcoming fixture.`;
+      if (Platform.OS === 'web') {
+        window.alert(message);
+        onContinue();
+        return;
+      }
+      Alert.alert('Player availability', message, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Select anyway', onPress: onContinue },
+      ]);
+    },
+    [indexedPlayers]
+  );
+
   const toggleDraft = useCallback(
     (playerId: string) => {
       setOpenDropdown(null);
@@ -845,7 +1144,32 @@ export function F2tPlayerPicker({
           );
           return;
         }
-        setDraftIds([playerId]);
+        warnIfFlaggedThen(playerId, () => setDraftIds([playerId]));
+        return;
+      }
+      if (phase === 'shootout') {
+        if (squadSet.has(playerId)) {
+          Alert.alert(
+            'Already in your squad',
+            'Shootout picks must be different from your main 20.'
+          );
+          return;
+        }
+        const existingIdx = draftShootoutIds.indexOf(playerId);
+        if (existingIdx >= 0) {
+          setDraftShootoutIds((prev) => prev.filter((id) => id !== playerId));
+          return;
+        }
+        if (draftShootoutIds.length >= 3) {
+          Alert.alert(
+            'Shootout',
+            'You already have 3 shootout players. Uncheck one before adding another.'
+          );
+          return;
+        }
+        warnIfFlaggedThen(playerId, () =>
+          setDraftShootoutIds((prev) => [...prev, playerId])
+        );
         return;
       }
       const selected = selectedSetRef.current;
@@ -860,39 +1184,71 @@ export function F2tPlayerPicker({
         );
         return;
       }
-      setDraftIds((prev) => [...prev, playerId]);
+      warnIfFlaggedThen(playerId, () => setDraftIds((prev) => [...prev, playerId]));
     },
-    [subMode, squadSet]
+    [subMode, squadSet, phase, draftShootoutIds, warnIfFlaggedThen]
   );
 
   const handleSubmit = useCallback(() => {
-    onSubmit(draftIds);
-  }, [draftIds, onSubmit]);
+    if (subMode) {
+      onSubmit(draftIds);
+      return;
+    }
+    if (phase === 'main') {
+      if (draftIds.length !== 20) {
+        Alert.alert('Selections', 'Pick exactly 20 players first.');
+        return;
+      }
+      setPhase('shootout');
+      setSearchInput('');
+      setSearch('');
+      setOpenDropdown(null);
+      return;
+    }
+    if (draftShootoutIds.length !== 3) {
+      Alert.alert(
+        'Shootout',
+        'Choose exactly 3 shootout players and assign them as ranks 1, 2 and 3 (tap order).'
+      );
+      return;
+    }
+    onSubmit(draftIds, draftShootoutIds);
+  }, [subMode, phase, draftIds, draftShootoutIds, onSubmit]);
 
   const renderPlayer = useCallback(
-    ({ item }: { item: IndexedPlayer }) => {
+    ({ item, index }: { item: IndexedPlayer; index: number }) => {
       const inSquad = squadSet.has(item.id);
+      const shootoutRank = shootoutRankById.get(item.id);
+      const selected =
+        phase === 'shootout'
+          ? shootoutRank != null
+          : selectedSet.has(item.id);
       return (
         <PlayerRow
           player={item}
-          selected={selectedSet.has(item.id)}
-          inSquad={inSquad}
+          selected={selected}
+          inSquad={inSquad && !selected}
           styles={rowStyles}
           accent={theme.colors.accent}
           textColor={theme.colors.text}
           surfaceFallback={theme.colors.background}
           onToggle={toggleDraft}
+          isCoachAnchor={coachActive && index === 0}
+          coachTargetRefs={coachActive && index === 0 ? coachTargetRefs : null}
         />
       );
     },
     [
       selectedSet,
       squadSet,
+      shootoutRankById,
+      phase,
       rowStyles,
       theme.colors.accent,
       theme.colors.text,
       theme.colors.background,
       toggleDraft,
+      coachActive,
     ]
   );
 
@@ -933,7 +1289,11 @@ export function F2tPlayerPicker({
             <Ionicons name="close" size={26} color={theme.colors.text} />
           </Pressable>
           <Text style={styles.title} numberOfLines={1}>
-            {title}
+            {subMode
+              ? title
+              : phase === 'shootout'
+                ? 'Choose 3 shootout players'
+                : title}
           </Text>
         </View>
 
@@ -962,7 +1322,37 @@ export function F2tPlayerPicker({
           </View>
         ) : null}
 
-        <View style={styles.controls}>
+        {!subMode && phase === 'shootout' ? (
+          <View style={styles.outWrap}>
+            <Text style={styles.outLabel}>Private shootout order (tap order = rank)</Text>
+            <Text style={styles.subHint}>
+              Hidden from other players. Used only if more than one tipster reaches 20. Rank 1
+              goes first in the knockout, then 2, then 3.
+            </Text>
+            <View style={styles.shootoutRankRow}>
+              {[0, 1, 2].map((idx) => {
+                const id = draftShootoutIds[idx];
+                const player = id ? indexedPlayers.find((p) => p.id === id) : null;
+                return (
+                  <View key={idx} style={styles.shootoutRankChip}>
+                    <Text style={styles.shootoutRankLabel}>SO{idx + 1}</Text>
+                    <Text style={styles.shootoutRankName} numberOfLines={1}>
+                      {player?.display_name ?? '—'}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        <View
+          style={styles.controls}
+          ref={(node) => {
+            filtersCoachRef.current = node;
+          }}
+          collapsable={false}
+        >
           <TextInput
             style={styles.search}
             value={searchInput}
@@ -975,6 +1365,7 @@ export function F2tPlayerPicker({
             autoCorrect={false}
             autoCapitalize="none"
             clearButtonMode="while-editing"
+            editable={!coachActive}
           />
           <View style={styles.dropdownRow}>
             {renderDropdownTrigger('position', positionLabel)}
@@ -1017,10 +1408,14 @@ export function F2tPlayerPicker({
             style={styles.list}
             contentContainerStyle={styles.listContent}
             data={filteredPlayers}
-            extraData={[draftIds, squadPlayerIds]}
+            extraData={[draftIds, draftShootoutIds, squadPlayerIds, phase, coachActive]}
             keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
-            onScrollBeginDrag={() => setOpenDropdown(null)}
+            onScrollBeginDrag={() => {
+              setOpenDropdown(null);
+              if (coachActive) measureCoachTarget(coachStep);
+            }}
+            scrollEnabled={!coachActive}
             initialNumToRender={14}
             maxToRenderPerBatch={10}
             windowSize={7}
@@ -1035,23 +1430,55 @@ export function F2tPlayerPicker({
         )}
 
         <View style={styles.footer}>
-          {!subMode ? (
-            <Text style={styles.pickCount}>{draftIds.length} / 20 selected</Text>
-          ) : (
+          {subMode ? (
             <Text style={styles.subHint}>
               Players marked In squad are already yours — pick someone new as the replacement.
             </Text>
+          ) : phase === 'shootout' ? (
+            <>
+              <Text style={styles.pickCount}>
+                {draftShootoutIds.length} / 3 shootout players
+              </Text>
+              <Pressable
+                style={styles.secondaryBtn}
+                onPress={() => setPhase('main')}
+                disabled={submitting || coachActive}
+              >
+                <Text style={styles.secondaryBtnText}>Back to main 20</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={styles.pickCount}>{draftIds.length} / 20 selected</Text>
           )}
-          <Pressable style={styles.primaryBtn} onPress={handleSubmit} disabled={submitting}>
+          <Pressable
+            style={styles.primaryBtn}
+            onPress={handleSubmit}
+            disabled={submitting || coachActive}
+          >
             {submitting ? (
               <ActivityIndicator color={theme.colors.white} size="small" />
             ) : (
               <Text style={styles.primaryBtnText}>
-                {subMode ? 'Confirm substitution' : 'Save selections'}
+                {subMode
+                  ? 'Confirm substitution'
+                  : phase === 'shootout'
+                    ? 'Save selections'
+                    : draftIds.length === 20
+                      ? 'Continue to shootout'
+                      : 'Save selections'}
               </Text>
             )}
           </Pressable>
         </View>
+
+        <F2tPickerCoachOverlay
+          visible={coachActive}
+          stepIndex={coachStep}
+          steps={F2T_PICKER_COACH_STEPS}
+          target={coachTarget}
+          onNext={onCoachNext}
+          onSkip={() => void finishCoach()}
+        />
       </View>
     </Modal>
   );

@@ -120,7 +120,8 @@ export default function GettingStartedScreen() {
           <Text style={styles.sectionTitle}>Tipster Twenty</Text>
           <Text style={styles.body}>
             Pick 20 players. As they score in real matches, your grid fills in. First to complete
-            all 20 wins. Use Team Management for substitutions when picks are flagged unavailable.
+            all 20 wins (ties use private shootouts, then team difficulty, then split). Use Team
+            Management for substitutions when picks are flagged unavailable.
           </Text>
         </View>
 
